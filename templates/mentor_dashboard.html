@@ -1,0 +1,716 @@
+<!-- Mentor Dashboard Template -->
+{% extends "base.html" %}
+{% block title %}Mentor Dashboard | HireHub{% endblock %}
+{% block content %}
+<div class="container mt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i> {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+</div>
+<div class="container-fluid">
+    <div class="row">
+
+        <div class="col-md-3 mentor-sidebar">
+            <h5 class="sidebar-title"><i class="bi bi-mortarboard-fill me-2"></i> Mentor Panel</h5>
+            
+            <a href="#dashboard" class="sidebar-link active" data-section="dashboard">
+                <i class="bi bi-speedometer2 me-2"></i> Dashboard
+            </a>
+
+            {% if profile_completed %}
+                <a href="#profile" class="sidebar-link" data-section="profile">
+                    <i class="bi bi-person-circle me-2"></i> My Profile
+                </a>
+                <a href="#requests" class="sidebar-link" data-section="requests">
+                    <i class="bi bi-inbox-fill me-2"></i> Mentorship Requests
+                </a>
+                <a href="#mentees" class="sidebar-link" data-section="mentees">
+                    <i class="bi bi-people me-2"></i> Active Mentees
+                </a>
+                <a href="#notifications" class="sidebar-link" data-section="notifications">
+                    <i class="bi bi-bell me-2"></i> Notifications
+                </a>
+                <a href="#schedule" class="sidebar-link" data-section="schedule">
+                    <i class="bi bi-calendar-event me-2"></i> My Schedule
+                </a>
+                <a href="#feedback" class="sidebar-link" data-section="feedback">
+                    <i class="bi bi-star-fill me-2"></i> Feedback Given
+                </a>
+            {% else %}
+                <a href="#profile" class="sidebar-link" data-section="profile">
+                    <i class="bi bi-pencil-square me-2"></i> Complete Profile
+                </a>
+                <div class="px-3 mt-3">
+                    <span class="badge bg-light text-dark w-100 p-2 shadow-sm" style="white-space: normal;">
+                        Complete Profile to Unlock All Features
+                    </span>
+                </div>
+            {% endif %}
+            
+            <hr>
+            <a href="/logout" class="sidebar-link logout"><i class="bi bi-door-open me-2"></i> Logout</a>
+        </div>
+
+
+        <div class="col-md-9 p-5">
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold"><i class="bi bi-person-workspace me-2"></i>Welcome Mentor</h3>
+                    <p class="text-muted mb-0">Manage your profile & mentorship</p>
+                </div>
+
+                {% if profile %}
+                    {% if profile.verification_status == 'approved' %}
+                        <span class="badge bg-success fs-6">Verified Mentor</span>
+                    {% elif profile.verification_status == 'rejected' %}
+                            <span class="badge bg-danger fs-6">Rejected</span>
+                            {% if profile.rejection_reason %}
+                                <div class="alert alert-danger mt-3">Your verification was rejected: <strong>{{ profile.rejection_reason }}</strong></div>
+                            {% endif %}
+                    {% else %}
+                        <span class="badge bg-warning text-dark fs-6">Pending Verification</span>
+                    {% endif %}
+                {% endif %}
+            </div>
+
+            <div class="card p-4 mb-4 shadow-sm">
+                <h6 class="fw-semibold mb-2">Profile Completion</h6>
+                <div class="progress">
+                    <div class="progress-bar bg-success"
+                        id="completion-bar"
+                        style="width: {{ profile_percent }}%"
+                        data-auto="{{ 'false' if profile_completed else 'true' }}">
+                        {{ profile_percent }}%
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section active-section" id="dashboard">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card p-4 shadow-sm border-0 bg-primary text-white">
+                            <h6>Active Mentees</h6>
+                            <h2>{{ active_sessions|length if active_sessions else 0 }}</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-4 shadow-sm border-0 bg-info text-white">
+                            <h6>Pending Requests</h6>
+                            <h2>{{ pending_requests|length if pending_requests else 0 }}</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-4 card p-4 shadow-sm">
+                    <h5>Overview</h5>
+                    <p>Welcome to your dashboard. Select an option from the sidebar to manage your mentorship journey.</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="profile">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">My Mentor Profile</h4>
+                    <div id="profile-actions">
+                        {% if profile %}
+                            <button class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#viewProfileModal">
+                                <i class="bi bi-eye me-1"></i> View Profile
+                            </button>
+                            {% if profile.verification_status == 'rejected' %}
+                                <button class="btn btn-warning btn-sm me-2" onclick="toggleEditMode(true)">
+                                    <i class="bi bi-pencil-square me-1"></i> Edit Profile According to Feedback
+                                </button>
+                            {% endif %}
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="toggleEditMode(true)">
+                                <i class="bi bi-pencil me-1"></i> Edit Profile
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteProfile()">
+                                <i class="bi bi-trash me-1"></i> Delete Profile
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div id="view-mode" class="{% if not profile %}d-none{% endif %}">
+                    <div class="row mb-4">
+                        <div class="col-md-3 text-center">
+                            {% if profile.photo_file %}
+                                <img src="{{ url_for('static', filename='uploads/' ~ profile.photo_file) }}" alt="Profile Photo" class="img-fluid rounded-circle mb-2" style="width:120px;height:120px;object-fit:cover;">
+                            {% else %}
+                                <div class="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:120px;height:120px;">No Photo</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-muted mb-1">Expertise</p>
+                            <p class="fw-bold">{{ profile.expertise if profile }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-muted mb-1">Designation</p>
+                            <p class="fw-bold">{{ profile.designation if profile }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="text-muted mb-1">Company</p>
+                            <p class="fw-bold">{{ profile.company if profile }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-12">
+                            <p class="text-muted mb-1">Short Bio</p>
+                            <p>{{ profile.bio if profile }}</p>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <p class="text-muted mb-1">LinkedIn Profile</p>
+                            <a href="{{ profile.linkedin if profile }}" target="_blank" class="btn btn-link p-0 text-decoration-none">
+                                <i class="bi bi-linkedin me-1"></i> View LinkedIn
+                            </a>
+                        </div>
+                        <div class="col-md-6">
+                            <p class="text-muted mb-1">Mentoring Areas</p>
+                            <p class="fw-semibold">{{ profile.mentoring_areas if profile }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Session Mode</small>
+                            <span>{{ profile.mode if profile }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Available Days</small>
+                            <span>{{ profile.available_days if profile }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Time Slot</small>
+                            <span>{{ profile.time_slot if profile }}</span>
+                        </div>
+                        <div class="col-md-3">
+                            <small class="text-muted d-block">Experience</small>
+                            <span>{{ profile.experience if profile }} Years</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="edit-mode" class="{% if profile %}d-none{% endif %}">
+                    <form method="POST" action="/mentor-dashboard" enctype="multipart/form-data" id="mentorForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Expertise *</label>
+                                <input type="text" name="expertise" class="form-control track" value="{{ profile.expertise if profile else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Designation *</label>
+                                <input type="text" name="designation" class="form-control track" value="{{ profile.designation if profile else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Company *</label>
+                                <input type="text" name="company" class="form-control track" value="{{ profile.company if profile else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>LinkedIn Profile *</label>
+                                <input type="url" name="linkedin" class="form-control track" value="{{ profile.linkedin if profile else '' }}" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label>Industry Exp (Years)</label>
+                                <input type="number" name="experience" class="form-control track" value="{{ profile.experience if profile else '' }}" min="0">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Mentoring Exp (Years)</label>
+                                <input type="number" name="mentoring_experience" class="form-control track" value="{{ profile.mentoring_experience if profile else '' }}" min="0">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Max Candidates</label>
+                                <input type="number" name="max_candidates" class="form-control track" value="{{ profile.max_candidates if profile else '' }}" min="1">
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label>Mentoring Areas *</label>
+                            <textarea name="mentoring_areas" class="form-control track" rows="3" required>{{ profile.mentoring_areas if profile else '' }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label>Session Mode *</label>
+                                <select name="mode" class="form-select track" required>
+                                    <option value="Online" {% if profile and profile.mode == 'Online' %}selected{% endif %}>Online</option>
+                                    <option value="Offline" {% if profile and profile.mode == 'Offline' %}selected{% endif %}>Offline</option>
+                                    <option value="Hybrid" {% if profile and profile.mode == 'Hybrid' %}selected{% endif %}>Hybrid</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Available Days *</label>
+                                <select name="available_days" class="form-select track" required>
+                                    <option value="Weekdays" {% if profile and profile.available_days == 'Weekdays' %}selected{% endif %}>Weekdays</option>
+                                    <option value="Weekends" {% if profile and profile.available_days == 'Weekends' %}selected{% endif %}>Weekends</option>
+                                    <option value="All Days" {% if profile and profile.available_days == 'All Days' %}selected{% endif %}>All Days</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Time Slot *</label>
+                                <input type="text" name="time_slot" class="form-control track" value="{{ profile.time_slot if profile else '' }}" placeholder="6 PM – 9 PM" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label>Short Bio *</label>
+                            <textarea name="bio" class="form-control track" rows="3" required>{{ profile.bio if profile else '' }}</textarea>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Verification Type *</label>
+                                <select name="verification_type" class="form-select track" required>
+                                    <option value="Company ID" {% if profile and profile.verification_type == 'Company ID' %}selected{% endif %}>Company ID</option>
+                                    <option value="Degree Certificate" {% if profile and profile.verification_type == 'Degree Certificate' %}selected{% endif %}>Degree Certificate</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Verification Document</label>
+                                <input type="file" name="verification_file" class="form-control track" accept=".pdf,.jpg,.jpeg,.png">
+                                <small class="text-muted">Leave empty to keep existing document</small>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Profile Photo</label>
+                                <input type="file" name="photo" class="form-control track" accept="image/*">
+                                <small class="text-muted">JPEG/PNG. Leave empty to keep existing photo</small>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1">
+                                <i class="bi bi-save me-1"></i> Save Profile Changes
+                            </button>
+                            {% if profile %}
+                                <button type="button" class="btn btn-secondary" onclick="toggleEditMode(false)">Cancel</button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="requests">
+                <h4 class="mb-3">Mentorship Requests</h4>
+                {% if pending_requests %}
+                <div class="table-responsive">
+                    <table class="table table-hover border">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Candidate</th>
+                                <th>Message</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in pending_requests %}
+                            <tr>
+                                <td>
+                                    <strong>{{ r.candidate_name }}</strong><br>
+                                    <small class="text-muted">{{ r.candidate_email }}</small>
+                                </td>
+                                <td>{{ r.request_message[:100] }}{% if r.request_message|length > 100 %}...{% endif %}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-info mb-1" data-bs-toggle="modal" data-bs-target="#candidateProfileModal{{ r.id }}">
+                                        <i class="bi bi-eye me-1"></i>View Profile
+                                    </button><br>
+                                    <a href="/mentor/respond-request/{{ r.id }}/accept" class="btn btn-sm btn-success me-1">Accept</a>
+                                    <a href="/mentor/respond-request/{{ r.id }}/reject" class="btn btn-sm btn-danger">Reject</a>
+                                </td>
+                            </tr>
+                            
+                            <!-- Candidate Profile Modal -->
+                            <div class="modal fade" id="candidateProfileModal{{ r.id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-info text-white">
+                                            <h5 class="modal-title"><i class="bi bi-person-circle me-2"></i>{{ r.candidate_name }}'s Profile</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="row mb-3">
+                                                <div class="col-md-3 text-center">
+                                                    {% if r.photo_file %}
+                                                        <img src="{{ url_for('static', filename='uploads/' + r.photo_file) }}" alt="Profile Photo" class="img-fluid rounded-circle mb-2" style="width:100px;height:100px;object-fit:cover;">
+                                                    {% else %}
+                                                        <div class="bg-secondary text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-2" style="width:100px;height:100px;font-size:40px;">
+                                                            {{ r.candidate_name[0]|upper }}
+                                                        </div>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="col-md-9">
+                                                    <h5>{{ r.first_name }} {{ r.last_name }}</h5>
+                                                    <p class="text-muted mb-1"><i class="bi bi-envelope me-1"></i>{{ r.candidate_email }}</p>
+                                                    {% if r.headline %}
+                                                        <p class="text-primary fw-semibold"><i class="bi bi-briefcase me-1"></i>{{ r.headline }}</p>
+                                                    {% endif %}
+                                                </div>
+                                            </div>
+                                            
+                                            {% if r.bio %}
+                                            <div class="mb-3">
+                                                <strong class="text-muted small">About</strong>
+                                                <p class="border-start border-3 ps-3">{{ r.bio }}</p>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Education</strong>
+                                                    <p>{{ r.education if r.education else 'Not provided' }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Skills</strong>
+                                                    <p>{{ r.skills if r.skills else 'Not provided' }}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            {% if r.experience %}
+                                            <div class="mb-3">
+                                                <strong class="text-muted small">Experience</strong>
+                                                <p>{{ r.experience }}</p>
+                                            </div>
+                                            {% endif %}
+                                            
+                                            <div class="bg-light p-3 rounded">
+                                                <strong class="text-muted small d-block mb-2">Request Message:</strong>
+                                                <p class="mb-0">{{ r.request_message }}</p>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer bg-light">
+                                            {% if r.resume_file %}
+                                                <a href="{{ url_for('static', filename='uploads/' + r.resume_file) }}" target="_blank" class="btn btn-primary btn-sm">
+                                                    <i class="bi bi-file-earmark-pdf me-1"></i>View Resume
+                                                </a>
+                                            {% endif %}
+                                            <a href="/mentor/respond-request/{{ r.id }}/accept" class="btn btn-success btn-sm">
+                                                <i class="bi bi-check-circle me-1"></i>Accept Request
+                                            </a>
+                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted">No pending requests</p>
+                {% endif %}
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="mentees">
+                <h4 class="mb-3">Active Mentorship Sessions</h4>
+                {% if active_sessions %}
+                    {% for s in active_sessions %}
+                    <div class="border rounded p-3 mb-3 bg-light">
+                        <strong>{{ s.candidate_name }}</strong>
+                        <p class="mb-2 text-muted small">{{ s.request_message }}</p>
+                        <form method="POST" action="/mentor/give-feedback/{{ s.id }}">
+                            <textarea name="feedback" class="form-control mb-2 form-control-sm" placeholder="Provide mentorship feedback..." required></textarea>
+                            <button class="btn btn-sm btn-primary">Submit Feedback</button>
+                        </form>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No active mentorship sessions</p>
+                {% endif %}
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="schedule">
+                <h4 class="mb-3">My Schedule</h4>
+                <div class="alert alert-secondary">Your mentoring availability and upcoming sessions will appear here.</div>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="feedback">
+                <h4 class="mb-3">Feedback Given</h4>
+                <p class="text-muted">History of feedback submitted to mentees.</p>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="notifications">
+                <h4 class="mb-3">Notifications</h4>
+                {% if notifications %}
+                    {% for n in notifications %}
+                        <div class="alert alert-info py-2 shadow-sm">{{ n.message }}</div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted">No new notifications</p>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+<div class="modal fade" id="viewProfileModal" tabindex="-1" aria-labelledby="viewProfileModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="viewProfileModalLabel"><i class="bi bi-person-badge me-2"></i>Full Mentor Profile</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Designation & Company</label>
+                        <p class="fs-5">{{ profile.designation if profile }} at {{ profile.company if profile }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Primary Expertise</label>
+                        <p class="fs-5 text-primary">{{ profile.expertise if profile }}</p>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="text-muted small text-uppercase fw-bold">About Me</label>
+                    <p class="border-start border-3 ps-3 italic">{{ profile.bio if profile }}</p>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Mentoring Focus</label>
+                        <p>{{ profile.mentoring_areas if profile }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="text-muted small text-uppercase fw-bold">Availability</label>
+                        <p>{{ profile.available_days if profile }} | {{ profile.time_slot if profile }}</p>
+                    </div>
+                </div>
+
+                <div class="bg-light p-3 rounded d-flex justify-content-around text-center">
+                    <div>
+                        <span class="d-block text-muted small">Experience</span>
+                        <span class="fw-bold">{{ profile.experience if profile }} Years</span>
+                    </div>
+                    <div>
+                        <span class="d-block text-muted small">Mentoring Exp</span>
+                        <span class="fw-bold">{{ profile.mentoring_experience if profile }} Years</span>
+                    </div>
+                    <div>
+                        <span class="d-block text-muted small">Max Mentees</span>
+                        <span class="fw-bold">{{ profile.max_candidates if profile }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <a href="{{ profile.linkedin if profile }}" target="_blank" class="btn btn-primary btn-sm">
+                    <i class="bi bi-linkedin me-1"></i> Visit LinkedIn
+                </a>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<<script>
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    const socket = io();
+    const userId = {{ user_id | tojson }};
+
+    socket.on('connect', () => {
+      socket.emit('join', { role: 'mentor', id: userId });
+    });
+
+    socket.on('mentor_notification', (data) => {
+      const msg = data.message || 'You have a new notification';
+
+      const container = document.querySelector('#notifications');
+      if (!container) return;
+
+      const alert = document.createElement('div');
+      alert.className = 'alert alert-info py-2 shadow-sm';
+      alert.textContent = msg;
+
+      const cardBody = container.querySelector('.card-body') || container;
+      cardBody.prepend(alert);
+    });
+
+  } catch (err) {
+    console.error(err);
+  }
+});
+</script>
+<style>
+    /* Section Logic: Hide all by default, show active */
+    .dashboard-section {
+        display: none;
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    .active-section {
+        display: block !important;
+    }
+
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Mentor Sidebar Styling */
+    .mentor-sidebar {
+        background: linear-gradient(180deg, #0d6efd, #0b5ed7);
+        min-height: 100vh;
+        padding: 20px;
+        color: #fff;
+        position: sticky;
+        top: 0;
+    }
+
+    .sidebar-title {
+        font-weight: 600;
+        margin-bottom: 25px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 15px;
+    }
+
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 15px;
+        margin-bottom: 8px;
+        color: #e9f0ff;
+        text-decoration: none !important;
+        border-radius: 8px;
+        font-size: 15px;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-link:hover {
+        background: rgba(255, 255, 255, 0.15);
+        color: #fff;
+    }
+
+    .sidebar-link.active {
+        background: rgba(255, 255, 255, 0.25);
+        font-weight: 600;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .sidebar-link.logout { color: #ffdddd; margin-top: 20px; }
+    .sidebar-link.logout:hover { background: rgba(220, 53, 69, 0.2); }
+    
+    html { scroll-behavior: smooth; }
+    /* Add this to your <style> block in mentor_dashboard.html */
+    .alert {
+        position: relative;
+        z-index: 1050; /* Ensures it stays above other dashboard elements */
+        margin-bottom: 20px;
+    }
+    
+    .hover-shadow {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .hover-shadow:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.15) !important;
+    }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const links = document.querySelectorAll(".sidebar-link");
+    const sections = document.querySelectorAll(".dashboard-section");
+    const bar = document.getElementById("completion-bar");
+    const fields = document.querySelectorAll(".track");
+
+    // SECTION SWITCHING LOGIC ---
+    function showSection(id) {
+        sections.forEach(sec => sec.classList.remove("active-section"));
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.add("active-section");
+        }
+        links.forEach(link => {
+            link.classList.remove("active");
+            if(link.getAttribute("href") === "#" + id) {
+                link.classList.add("active");
+            }
+        });
+    }
+
+    // Handle clicks on sidebar links
+    links.forEach(link => {
+        link.addEventListener("click", e => {
+            const hash = link.getAttribute("href");
+            if (hash && hash.startsWith("#")) {
+                e.preventDefault();
+                const id = hash.substring(1);
+                showSection(id);
+            }
+        });
+    });
+    const currentHash = window.location.hash.substring(1);
+    if (currentHash && document.getElementById(currentHash)) {
+        showSection(currentHash);
+    } else {
+        showSection("dashboard");
+    }
+
+
+    // --- 2. PROGRESS BAR LOGIC ---
+    function updateProgress() {
+        if(bar.dataset.auto === "false") return;
+
+        let filled = 0;
+        fields.forEach(f => {
+            if (f.type === "file") {
+                if (f.files.length > 0) filled++;
+            } else if (f.value && f.value.trim() !== "") {
+                filled++;
+            }
+        });
+
+        let percent = Math.round((filled / fields.length) * 100);
+        bar.style.width = percent + "%";
+        bar.innerText = percent + "%";
+    }
+
+    fields.forEach(f => {
+        f.addEventListener("input", updateProgress);
+        f.addEventListener("change", updateProgress);
+    });
+});
+function toggleEditMode(showEdit) {
+    const viewMode = document.getElementById('view-mode');
+    const editMode = document.getElementById('edit-mode');
+    const actions = document.getElementById('profile-actions');
+
+    if (showEdit) {
+        viewMode.classList.add('d-none');
+        editMode.classList.remove('d-none');
+        actions.classList.add('d-none');
+    } else {
+        viewMode.classList.remove('d-none');
+        editMode.classList.add('d-none');
+        actions.classList.remove('d-none');
+    }
+}
+
+function confirmDeleteProfile() {
+    if (confirm("Are you sure you want to delete your profile? This will hide you from candidates.")) {
+        // Create a hidden form to send a POST request for security
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/mentor/delete-profile';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+
+</script>
+{% endblock %}

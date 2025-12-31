@@ -1,0 +1,700 @@
+<!-- Admin Dashboard Template -->
+{% extends "base.html" %}
+{% block title %}Admin Dashboard | HireHub{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3 admin-sidebar">
+            <h5 class="sidebar-title"><i class="bi bi-shield-lock-fill me-2"></i> Admin Console</h5>
+            <a href="#overview" class="sidebar-link active"><i class="bi bi-graph-up me-2"></i> Analytics & Trends</a>
+            <a href="#users" class="sidebar-link"><i class="bi bi-people me-2"></i> Manage Users</a>
+            <a href="#verify-mentors" class="sidebar-link"><i class="bi bi-patch-check me-2"></i> Verify Mentors</a>
+            <a href="#verify-companies" class="sidebar-link"><i class="bi bi-building-check me-2"></i> Verify Companies</a>
+            <a href="#jobs" class="sidebar-link"><i class="bi bi-briefcase me-2"></i> Job Moderation</a>
+            <a href="#feedbacks" class="sidebar-link"><i class="bi bi-exclamation-octagon me-2"></i> Users Feedback</a>
+            <a href="#notifications" class="sidebar-link"><i class="bi bi-bell me-2"></i> Notifications & Alerts</a>
+            <a href="#audit" class="sidebar-link"><i class="bi bi-shield-lock me-2"></i> Audit & Logs</a>
+            <a href="#reports" class="sidebar-link"><i class="bi bi-download me-2"></i> Export & Reports</a>
+            <hr>
+            <a href="/logout" class="sidebar-link logout"><i class="bi bi-door-open me-2"></i> Logout</a>
+        </div>
+
+        <div class="col-md-9 p-5">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 class="fw-bold"><i class="bi bi-gear-wide-connected me-2"></i> Platform Control Panel</h3>
+                <span class="badge bg-dark fs-6 px-3 py-2">System Status: Secure</span>
+            </div>
+
+            <div class="dashboard-section active-section" id="overview">
+                <div class="row g-4">
+                    <div class="col-md-3">
+                        <div class="card p-3 shadow-sm border-0 bg-primary text-white text-center">
+                            <h6>Total Placements</h6>
+                            <h2>{{ total_placements }}</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 shadow-sm border-0 bg-success text-white text-center">
+                            <h6>Active Jobs</h6>
+                            <h2>{{ active_jobs }}</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 shadow-sm border-0 bg-info text-white text-center">
+                            <h6>Skill Coverage</h6>
+                            <h2>{{ skill_coverage }}%</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card p-3 shadow-sm border-0 bg-warning text-dark text-center">
+                            <h6>Reports</h6>
+                            <h2>{{ reports_count }}</h2>
+                        </div>
+                    </div>
+                </div>
+                <!-- Include Analytics Section -->
+                {% include 'admin_analytics.html' %}
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="users">
+                <h4 class="mb-3">User & Role Management</h4>
+                <ul class="nav nav-tabs mb-3" id="userTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" data-role="All">All</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-role="Candidate">Candidates</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-role="Mentor">Mentors</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" data-role="Recruiter">Recruiters</button>
+                    </li>
+                </ul>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border" id="usersTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Verification Status</th>
+                                <th>Actions</th>
+                                <th>View Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in all_users %}
+                            <tr data-role="{{ user.role }}" data-user-id="{{ user.id }}">
+                                <td>{{ user.name }}</td>
+                                <td>{{ user.email }}</td>
+                                <td><span class="badge bg-secondary">{{ user.role }}</span></td>
+                                <td>
+                                    {% if user.verification_status %}
+                                        {% if user.verification_status == 'approved' %}
+                                            <span class="badge bg-success">Approved</span>
+                                        {% elif user.verification_status == 'rejected' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">{{ user.verification_status }}</span>
+                                        {% endif %}
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger block-user-btn" data-user-id="{{ user.id }}">Block</button>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2 delete-user-btn" data-user-id="{{ user.id }}">Delete</button>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-user-btn" data-role="{{ user.role }}" data-user-id="{{ user.id }}">View Profile</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Notifications & Alerts -->
+            <div class="card shadow-sm p-4 dashboard-section mt-4" id="notifications">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0"><i class="bi bi-bell me-2"></i>Notifications & Alerts</h4>
+                    <span class="badge bg-info text-dark">Live</span>
+                </div>
+                <div class="list-group">
+                    {% if notifications_list %}
+                        {% for n in notifications_list %}
+                        <div class="list-group-item d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-bold">{{ n.message }}</div>
+                                <small class="text-muted">{{ n.receiver_role|title }} • {{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}</small>
+                            </div>
+                            {% if n.is_read %}
+                                <span class="badge bg-success">Read</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Pending</span>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="list-group-item text-muted">No notifications yet.</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Audit & Logs -->
+            <div class="card shadow-sm p-4 dashboard-section mt-4" id="audit">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Audit & Logs</h4>
+                    <span class="text-muted small">Last 5 events</span>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Receiver</th>
+                                <th>Message</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if audit_rows %}
+                                {% for a in audit_rows %}
+                                <tr>
+                                    <td>{{ a.created_at.strftime('%Y-%m-%d %H:%M') if a.created_at else '' }}</td>
+                                    <td>{{ a.receiver_role|title }} #{{ a.receiver_id }}</td>
+                                    <td>{{ a.message }}</td>
+                                    <td>
+                                        {% if a.is_read %}
+                                            <span class="badge bg-success">Read</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">Info</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="4" class="text-center text-muted">No audit entries.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Export & Reports -->
+            <div class="card shadow-sm p-4 dashboard-section mt-4" id="reports">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0"><i class="bi bi-download me-2"></i>Export & Reports</h4>
+                    <span class="text-muted small">Quick downloads</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <h6 class="fw-bold">User Summary</h6>
+                            <p class="text-muted small mb-2">CSV of all users and roles</p>
+                            <a class="btn btn-sm btn-outline-primary w-100" href="/admin/export/users">Export CSV</a>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <h6 class="fw-bold">Jobs & Applications</h6>
+                            <p class="text-muted small mb-2">Active/closed jobs with applicants</p>
+                            <a class="btn btn-sm btn-outline-primary w-100" href="/admin/export/jobs">Export CSV</a>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-0 shadow-sm h-100 p-3">
+                            <h6 class="fw-bold">Audit Trail</h6>
+                            <p class="text-muted small mb-2">Recent admin actions</p>
+                            <a class="btn btn-sm btn-outline-primary w-100" href="/admin/export/audit">Download Log</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card shadow-sm p-4 dashboard-section" id="feedbacks">
+                <h4 class="mb-3">Platform & Session Feedbacks</h4>
+                <p class="text-muted small mb-4">Monitor student ratings and qualitative feedback for mentors and the platform.</p>
+
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle border">
+                        <thead class="table-light">
+                            <tr>
+                                <th>User</th>
+                                <th>Type</th>
+                                <th>Rating</th>
+                                <th>Comment</th>
+                                <th>Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if user_feedbacks %}
+                                {% for fb in user_feedbacks %}
+                                <tr>
+                                    <td>{{ fb.user_name }}</td>
+                                    <td><span class="badge bg-info text-dark">{{ fb.type }}</span></td>
+                                    <td>
+                                        <div class="text-warning">
+                                            {% for i in range(fb.rating) %}<i class="bi bi-star-fill"></i>{% endfor %}
+                                        </div>
+                                    </td>
+                                    <td><small>{{ fb.comment }}</small></td>
+                                    <td>{{ fb.created_at.strftime('%Y-%m-%d') }}</td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr><td colspan="5" class="text-center text-muted">No feedback received yet.</td></tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card shadow-sm p-4 dashboard-section" id="verify-mentors">
+                <h4 class="mb-3">Mentor Verification Center</h4>
+                {% if pending_mentors %}
+                <div class="table-responsive">
+                    <table class="table align-middle border">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Mentor</th>
+                                <th>Company ID / Doc</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                                <th>View Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for mentor in pending_mentors %}
+                            <tr>
+                                <td>{{ mentor.name }} <br><small class="text-muted">{{ mentor.expertise }}</small></td>
+                                <td><a href="{{ url_for('static', filename='uploads/' + mentor.verification_file) }}" target="_blank">View Document</a></td>
+                                <td><span class="badge bg-warning text-dark">Pending</span></td>
+                                <td>
+                                    <a href="/admin/approve-mentor/{{ mentor.id }}" class="btn btn-sm btn-success">Approve</a>
+                                    <button class="btn btn-sm btn-danger reject-btn" data-profile-id="{{ mentor.id }}">Reject</button>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-profile-btn" data-profile-id="{{ mentor.id }}">View Profile</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted">No pending mentor verifications.</p>
+                {% endif %}
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="verify-companies">
+                <h4 class="mb-3">Company Verification</h4>
+                <p class="text-muted">Review and verify recruiter business profiles.</p>
+                {% if pending_companies %}
+                <div class="table-responsive mt-3">
+                    <table class="table align-middle border">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Company Name</th>
+                                <th>Email</th>
+                                <th>Verification Document</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                                <th>View Profile</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in pending_companies %}
+                            <tr>
+                                <td>{{ c.company_name or '—' }}</td>
+                                <td>{{ c.company_email or '—' }}</td>
+                                <td>
+                                    {% set doc = c.company_doc or c.auth_doc %}
+                                    {% if doc %}
+                                        <a href="{{ url_for('static', filename='uploads/' + doc) }}" target="_blank">View Document</a>
+                                    {% else %}
+                                        <span class="text-muted">N/A</span>
+                                    {% endif %}
+                                </td>
+                                <td><span class="badge bg-warning text-dark">{{ c.verification_status }}</span></td>
+                                <td>
+                                    <a href="/admin/approve-company/{{ c.recruiter_id }}" class="btn btn-sm btn-success">Approve</a>
+                                    <a href="/admin/reject-company/{{ c.recruiter_id }}" class="btn btn-sm btn-danger ms-2">Reject</a>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary view-company-btn" data-recruiter-id="{{ c.recruiter_id }}">View Profile</button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                    <p class="text-muted">No pending company verifications.</p>
+                {% endif %}
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="jobs">
+                <h4 class="mb-3">Job Moderation</h4>
+                <p class="text-muted">Active job postings across the platform.</p>
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="complaints">
+                <h4 class="mb-3">Platform Support & Complaints</h4>
+                <div class="alert alert-secondary">Handle complaints and maintain security backups.</div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<style>
+    .admin-sidebar { background: linear-gradient(180deg, #212529, #343a40); min-height: 100vh; padding: 20px; color: #fff; position: sticky; top: 0; }
+    .sidebar-title { font-weight: 600; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; }
+    .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 12px 15px; margin-bottom: 8px; color: #adb5bd; text-decoration: none !important; border-radius: 8px; transition: 0.2s; }
+    .sidebar-link:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+    .sidebar-link.active { background: rgba(13, 110, 253, 0.2); color: #0d6efd; border: 1px solid rgba(13, 110, 253, 0.3); font-weight: 600; }
+    .sidebar-link.logout { color: #f8d7da; }
+    .dashboard-section { display: none; animation: fadeIn 0.3s ease; }
+    .active-section { display: block !important; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const links = document.querySelectorAll(".sidebar-link");
+    const sections = document.querySelectorAll(".dashboard-section");
+
+    function showSection(id) {
+        sections.forEach(sec => sec.classList.remove("active-section"));
+        const target = document.getElementById(id);
+        if (target) target.classList.add("active-section");
+        links.forEach(link => {
+            link.classList.remove("active");
+            if(link.getAttribute("href") === "#" + id) link.classList.add("active");
+        });
+    }
+
+    links.forEach(link => {
+        link.addEventListener("click", e => {
+            const hash = link.getAttribute("href");
+            if (hash && hash.startsWith("#")) {
+                e.preventDefault();
+                showSection(hash.substring(1));
+                window.location.hash = hash;
+            }
+        });
+    });
+
+    const hash = window.location.hash.substring(1);
+    showSection(hash || "overview");
+    // Users tab filtering and actions
+    const tabs = document.querySelectorAll('#userTabs .nav-link');
+    const rows = document.querySelectorAll('#usersTable tbody tr');
+    tabs.forEach(t => t.addEventListener('click', () => {
+        tabs.forEach(x => x.classList.remove('active'));
+        t.classList.add('active');
+        const role = t.getAttribute('data-role');
+        rows.forEach(r => {
+            if (role === 'All' || r.getAttribute('data-role') === role) r.style.display = '';
+            else r.style.display = 'none';
+        });
+    }));
+
+    // View profile modal for any user
+    document.querySelectorAll('.view-user-btn').forEach(btn => btn.addEventListener('click', async () => {
+        const role = btn.getAttribute('data-role');
+        const uid = btn.getAttribute('data-user-id');
+        // create modal container if not exists
+        let modalEl = document.getElementById('viewUserModal');
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.innerHTML = `
+            <div class="modal fade" id="viewUserModal" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">User Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body" id="viewUserBody">Loading...</div>
+                  <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+                </div>
+              </div>
+            </div>`;
+            document.body.appendChild(modalEl);
+        }
+        const viewModal = new bootstrap.Modal(document.getElementById('viewUserModal'));
+        document.getElementById('viewUserBody').innerHTML = '<p class="text-muted">Loading…</p>';
+        viewModal.show();
+        try {
+            const res = await fetch(`/admin/user-profile/${encodeURIComponent(role)}/${encodeURIComponent(uid)}`);
+            const data = await res.json();
+            if (!data.success) {
+                document.getElementById('viewUserBody').innerHTML = `<div class="alert alert-danger">${data.error || 'Could not load profile'}</div>`;
+                return;
+            }
+            const p = data.profile;
+            let html = '';
+            if (role.toLowerCase() === 'mentor') {
+                html = `<h5>${p.mentor_name} &nbsp;<small class="text-muted">(${p.mentor_email})</small></h5>`+
+                       `<p><strong>Expertise:</strong> ${p.expertise || ''}</p>`+
+                       `<p><strong>Company:</strong> ${p.company || ''}</p>`+
+                       `<p><strong>Bio:</strong><br>${p.bio || ''}</p>`+
+                       `<p><strong>Verification File:</strong> ${p.verification_file ? `<a href="/static/uploads/${p.verification_file}" target="_blank">View</a>` : 'N/A'}</p>`;
+            } else if (role.toLowerCase() === 'candidate') {
+                const u = p.user; const cp = p.candidate_profile || {};
+                html = `<h5>${u.name} &nbsp;<small class="text-muted">(${u.email})</small></h5>`+
+                       `<p><strong>Headline:</strong> ${cp.headline || ''}</p>`+
+                       `<p><strong>Skills:</strong> ${cp.skills || ''}</p>`;
+            } else if (role.toLowerCase() === 'recruiter') {
+                const u = p.user; const rp = p.recruiter_profile || {};
+                html = `<h5>${u.name} &nbsp;<small class="text-muted">(${u.email})</small></h5>`+
+                       `<p><strong>Company:</strong> ${rp.company_name || ''}</p>`+
+                       `<p><strong>Website:</strong> ${rp.website || ''}</p>`;
+            } else {
+                html = `<pre>${JSON.stringify(p, null, 2)}</pre>`;
+            }
+            document.getElementById('viewUserBody').innerHTML = html;
+        } catch (e) {
+            document.getElementById('viewUserBody').innerHTML = `<div class="alert alert-danger">Error loading profile</div>`;
+        }
+    }));
+
+    // Company profile viewer from Verify Companies section
+    document.querySelectorAll('.view-company-btn').forEach(btn => btn.addEventListener('click', async () => {
+        const uid = btn.getAttribute('data-recruiter-id');
+        // reuse user modal container if present
+        let modalEl = document.getElementById('viewUserModal');
+        if (!modalEl) {
+            modalEl = document.createElement('div');
+            modalEl.innerHTML = `
+            <div class="modal fade" id="viewUserModal" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-xl modal-dialog-centered">
+                <div class="modal-content">
+                  <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title">Company Profile</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body" id="viewUserBody">Loading...</div>
+                  <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+                </div>
+              </div>
+            </div>`;
+            document.body.appendChild(modalEl);
+        }
+        const viewModal = new bootstrap.Modal(document.getElementById('viewUserModal'));
+        const body = document.getElementById('viewUserBody');
+        body.innerHTML = '<p class="text-muted">Loading…</p>';
+        viewModal.show();
+        try {
+            const res = await fetch(`/admin/user-profile/recruiter/${encodeURIComponent(uid)}`);
+            const data = await res.json();
+            if (!data.success) {
+                body.innerHTML = `<div class="alert alert-danger">${data.error || 'Could not load profile'}</div>`;
+                return;
+            }
+            const u = data.profile.user || {}; 
+            const rp = data.profile.recruiter_profile || {};
+            const docUrl = rp.company_doc ? `/static/uploads/${rp.company_doc}` : null;
+            const authUrl = rp.auth_doc ? `/static/uploads/${rp.auth_doc}` : null;
+            const logoUrl = rp.logo_file ? `/static/uploads/${rp.logo_file}` : null;
+            const isImg = (f) => /\.(png|jpg|jpeg|gif|webp|svg)$/i.test(f || '');
+
+            body.innerHTML = `
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card h-100 border-0 shadow-sm p-3 text-center">
+                            ${logoUrl ? (isImg(logoUrl) ? `<img src="${logoUrl}" class="img-fluid rounded mb-2" alt="logo">` : `<a href="${logoUrl}" target="_blank" class="btn btn-sm btn-outline-primary">View Logo</a>`) : '<div class="text-muted small">No logo uploaded</div>'}
+                            <h5 class="mt-2">${rp.company_name || '—'}</h5>
+                            <div class="small text-muted">${rp.industry || ''}</div>
+                            <div class="mt-2">
+                                <a href="${rp.website || '#'}" target="_blank">${rp.website || ''}</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="card border-0 shadow-sm p-3">
+                            <h6 class="fw-bold">Company Details</h6>
+                            <div class="row small">
+                                <div class="col-md-6"><strong>Type:</strong> ${rp.company_type || '—'}</div>
+                                <div class="col-md-6"><strong>Size:</strong> ${rp.company_size || '—'}</div>
+                                <div class="col-md-12 mt-1"><strong>Address:</strong> ${rp.address || '—'}</div>
+                                <div class="col-md-12 mt-1"><strong>Roles:</strong> ${rp.roles || '—'}</div>
+                                <div class="col-md-6 mt-1"><strong>Experience:</strong> ${rp.experience_levels || '—'}</div>
+                                <div class="col-md-6 mt-1"><strong>Job Types:</strong> ${rp.job_types || '—'}</div>
+                            </div>
+                            <hr>
+                            <h6 class="fw-bold">Admin Contact</h6>
+                            <div class="row small">
+                                <div class="col-md-6"><strong>Name:</strong> ${rp.full_name || u.name || '—'}</div>
+                                <div class="col-md-6"><strong>Email:</strong> ${u.email || '—'}</div>
+                                <div class="col-md-6 mt-1"><strong>Designation:</strong> ${rp.designation || '—'}</div>
+                                <div class="col-md-6 mt-1"><strong>Phone:</strong> ${rp.phone || '—'}</div>
+                                <div class="col-md-12 mt-1"><strong>LinkedIn:</strong> ${rp.linkedin ? `<a href="${rp.linkedin}" target="_blank">${rp.linkedin}</a>` : '—'}</div>
+                            </div>
+                            <hr>
+                            <h6 class="fw-bold">Verification Documents</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="border rounded p-2">
+                                        <div class="small text-muted">Company Document</div>
+                                        ${docUrl ? (isImg(docUrl) ? `<img src="${docUrl}" class="img-fluid rounded" />` : `<a href="${docUrl}" target="_blank">View Document</a>`) : 'N/A'}
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="border rounded p-2">
+                                        <div class="small text-muted">Authorization Proof</div>
+                                        ${authUrl ? (isImg(authUrl) ? `<img src="${authUrl}" class="img-fluid rounded" />` : `<a href="${authUrl}" target="_blank">View Document</a>`) : 'N/A'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>`;
+        } catch (e) {
+            body.innerHTML = `<div class="alert alert-danger">Error loading profile</div>`;
+        }
+    }));
+});
+</script>
+
+<!-- Reject reason modal -->
+<div class="modal fade" id="rejectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title">Reject Mentor Verification</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Reason for rejection</label>
+                    <textarea id="rejectReason" class="form-control" rows="4" placeholder="Provide a short reason..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="submitReject" class="btn btn-danger">Send Rejection</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const rejectButtons = document.querySelectorAll('.reject-btn');
+    let currentProfileId = null;
+    const rejectModal = new bootstrap.Modal(document.getElementById('rejectModal'));
+    const reasonInput = document.getElementById('rejectReason');
+    const submitBtn = document.getElementById('submitReject');
+
+    rejectButtons.forEach(btn => btn.addEventListener('click', () => {
+        currentProfileId = btn.getAttribute('data-profile-id');
+        reasonInput.value = '';
+        rejectModal.show();
+    }));
+
+    submitBtn.addEventListener('click', async () => {
+        const reason = reasonInput.value.trim();
+        if (!currentProfileId) return;
+        submitBtn.disabled = true;
+        try {
+            const res = await fetch(`/admin/reject-mentor/${currentProfileId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ reason })
+            });
+            const data = await res.json();
+            if (data.success) {
+                rejectModal.hide();
+                // update row to show rejected
+                const btn = document.querySelector(`[data-profile-id="${currentProfileId}"]`);
+                if (btn) {
+                    const row = btn.closest('tr');
+                    if (row) {
+                        row.querySelector('td:nth-child(3)').innerHTML = '<span class="badge bg-danger">Rejected</span>';
+                        btn.remove();
+                    }
+                }
+            } else {
+                alert('Failed to reject mentor');
+            }
+        } catch (e) {
+            console.error(e);
+            alert('Error sending rejection');
+        } finally {
+            submitBtn.disabled = false;
+        }
+    });
+
+        // view profile modal logic
+        const viewBtns = document.querySelectorAll('.view-profile-btn');
+        const profileModalEl = document.createElement('div');
+        profileModalEl.innerHTML = `
+        <div class="modal fade" id="viewMentorModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title">Mentor Profile</h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="mentorProfileBody">
+                        <p class="text-muted">Loading…</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>`;
+        document.body.appendChild(profileModalEl);
+        const profileModal = new bootstrap.Modal(document.getElementById('viewMentorModal'));
+
+        viewBtns.forEach(b => b.addEventListener('click', async () => {
+            const pid = b.getAttribute('data-profile-id');
+            const body = document.getElementById('mentorProfileBody');
+            body.innerHTML = '<p class="text-muted">Loading…</p>';
+            profileModal.show();
+            try {
+                const res = await fetch(`/admin/mentor-profile/${pid}`);
+                const data = await res.json();
+                if (!data.success) {
+                    body.innerHTML = `<div class="alert alert-danger">${data.error || 'Could not load profile'}</div>`;
+                    return;
+                }
+                const p = data.profile;
+                body.innerHTML = `
+                    <h5>${p.mentor_name} <small class="text-muted">(${p.mentor_email})</small></h5>
+                    <p><strong>Expertise:</strong> ${p.expertise || ''}</p>
+                    <p><strong>Designation:</strong> ${p.designation || ''}</p>
+                    <p><strong>Company:</strong> ${p.company || ''}</p>
+                    <p><strong>LinkedIn:</strong> <a href="${p.linkedin || '#'}" target="_blank">${p.linkedin || 'N/A'}</a></p>
+                    <p><strong>Mentoring Areas:</strong> ${p.mentoring_areas || ''}</p>
+                    <p><strong>Bio:</strong><br>${p.bio || ''}</p>
+                    <p><strong>Verification Type:</strong> ${p.verification_type || ''}</p>
+                    <p><strong>Verification File:</strong> ${p.verification_file ? `<a href="/static/uploads/${p.verification_file}" target="_blank">View</a>` : 'N/A'}</p>
+                `;
+            } catch (e) {
+                body.innerHTML = `<div class="alert alert-danger">Error loading profile</div>`;
+            }
+        }));
+});
+</script>
+{% endblock %}

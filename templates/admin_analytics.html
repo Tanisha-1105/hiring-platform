@@ -1,0 +1,194 @@
+<!-- Analytics & Trends Section -->
+<div class="mt-5 mb-5">
+    <h4 class="fw-bold mb-4">Analytics & Trends</h4>
+    
+    <!-- 1. Platform Growth Chart (Full Width) -->
+    <div class="card mb-4 p-4 border-0 shadow-sm">
+        <h6 class="fw-bold mb-3">Platform Growth (Users per Month)</h6>
+        <div style="position: relative; height: 300px;">
+            <canvas id="growthChart"></canvas>
+        </div>
+    </div>
+
+    <!-- 2. Two Charts in One Row -->
+    <div class="row g-4 mb-4">
+        <!-- User Role Distribution -->
+        <div class="col-lg-6">
+            <div class="card p-4 border-0 shadow-sm h-100">
+                <h6 class="fw-bold mb-3">User Role Distribution</h6>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="rolesChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jobs Overview -->
+        <div class="col-lg-6">
+            <div class="card p-4 border-0 shadow-sm h-100">
+                <h6 class="fw-bold mb-3">Jobs Overview</h6>
+                <div style="position: relative; height: 300px;">
+                    <canvas id="jobsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. Top Skills in Demand (Full Width Horizontal Bar) -->
+    <div class="card p-4 border-0 shadow-sm">
+        <h6 class="fw-bold mb-3">Top Skills in Demand</h6>
+        <div style="position: relative; height: 350px;">
+            <canvas id="skillsChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    console.log('Analytics script loaded');
+    
+    // Fetch analytics data from backend
+    fetch('/api/analytics')
+        .then(response => {
+            console.log('API Response:', response);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Analytics data received:', data);
+            
+            if (!data.success) {
+                console.error('Failed to load analytics:', data.error);
+                return;
+            }
+
+            const analytics = data;
+
+            // 1. Platform Growth Chart (Line)
+            const growthCtx = document.getElementById('growthChart');
+            if (growthCtx) {
+                console.log('Creating growth chart...');
+                new Chart(growthCtx, {
+                    type: 'line',
+                    data: {
+                        labels: analytics.growth.months,
+                        datasets: [{
+                            label: 'Registered Users',
+                            data: analytics.growth.users,
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 4,
+                            pointBackgroundColor: '#3b82f6',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: true, position: 'bottom' }
+                        },
+                        scales: {
+                            x: { grid: { display: false } },
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            // 2a. User Role Distribution (Bar)
+            const rolesCtx = document.getElementById('rolesChart');
+            if (rolesCtx) {
+                console.log('Creating roles chart...');
+                new Chart(rolesCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.roles.labels,
+                        datasets: [{
+                            label: 'Users',
+                            data: analytics.roles.data,
+                            backgroundColor: ['#10b981', '#f59e0b', '#ef4444'],
+                            borderRadius: 5,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            // 2b. Jobs Overview (Bar)
+            const jobsCtx = document.getElementById('jobsChart');
+            if (jobsCtx) {
+                console.log('Creating jobs chart...');
+                new Chart(jobsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.jobs.labels,
+                        datasets: [{
+                            label: 'Jobs',
+                            data: analytics.jobs.data,
+                            backgroundColor: ['#6366f1', '#94a3b8'],
+                            borderRadius: 5,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            y: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+
+            // 3. Top Skills in Demand (Horizontal Bar)
+            const skillsCtx = document.getElementById('skillsChart');
+            if (skillsCtx) {
+                console.log('Creating skills chart...');
+                new Chart(skillsCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: analytics.skills.labels,
+                        datasets: [{
+                            label: 'Demand Count',
+                            data: analytics.skills.data,
+                            backgroundColor: '#06b6d4',
+                            borderRadius: 5,
+                            borderSkipped: false
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'y',
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false }
+                        },
+                        scales: {
+                            x: { beginAtZero: true }
+                        }
+                    }
+                });
+            }
+        })
+        .catch(error => console.error('Error fetching analytics:', error));
+});
+</script>

@@ -1,0 +1,363 @@
+<!--index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HireHub | AI Career Platform</title>
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+        html {
+            scroll-behavior: smooth;
+        }
+        /* ===== NAVBAR ===== */
+        .navbar {
+            background: #ffffff;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .navbar-brand {
+            font-weight: 700;
+            font-size: 22px;
+            color: #2563eb !important;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: #111827 !important;
+            margin-right: 20px;
+        }
+
+        .btn-login {
+            border: 1px solid #2563eb;
+            color: #2563eb;
+            padding: 6px 16px;
+            border-radius: 8px;
+        }
+
+        .btn-login:hover {
+            background: #2563eb;
+            color: #fff;
+        }
+
+        .btn-start {
+            background: #2563eb;
+            color: #fff;
+            padding: 6px 18px;
+            border-radius: 8px;
+        }
+
+        /* ===== HERO (BACKGROUND SLIDESHOW) ===== */
+        .hero {
+            color: #fff;
+            padding: 140px 0 120px;
+
+            min-height: 80vh;
+            display: flex;
+            align-items: center;
+
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+
+            animation: heroBgSlide 18s infinite ease-in-out;
+            position: relative;
+        }
+
+        /* Gradient overlay for readability */
+        .hero::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+
+            background: linear-gradient(
+                90deg,
+                rgba(79, 70, 229, 0.55) 0%,
+                rgba(79, 70, 229, 0.35) 50%,
+                rgba(79, 70, 229, 0.15) 100%
+            );
+
+            z-index: 1;
+        }
+
+        /* Keep text above overlay */
+        .hero .container {
+            position: relative;
+            z-index: 2;
+        }
+
+        /* Background image animation */
+        @keyframes heroBgSlide {
+            0% {
+                background-image: url("/static/images/hero/hero1.jpg");
+            }
+            25% {
+                background-image: url("/static/images/hero/hero2.jpg");
+            }
+            50% {
+                background-image: url("/static/images/hero/hero3.jpg");
+            }
+            75% {
+                background-image: url("/static/images/hero/hero4.jpg");
+            }
+            100% {
+                background-image: url("/static/images/hero/hero1.jpg");
+            }
+        }
+
+
+        .hero h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            
+        }
+
+        .hero p {
+            font-size: 1.2rem;
+            margin-top: 20px;
+            
+        }
+
+        /* ===== SECTIONS ===== */
+        .section-title {
+            font-size: 2rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .feature-card {
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 32px 26px;
+            height: 100%;
+
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+            transition: all 0.3s ease;
+
+            cursor: pointer;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-card i {
+            font-size: 40px;
+            color: #4f46e5;
+
+        }
+        .feature-link {
+            display: block;
+            text-decoration: none;
+            color: inherit;
+            height: 100%;
+        }
+        .feature-card h5 {
+            font-weight: 600;
+            margin: 0;
+            color: #111827;
+        }
+
+        .feature-card p {
+            font-size: 15px;
+            color: #6b7280;
+            margin: 0;
+            line-height: 1.6;
+        }    
+        .feature-link:hover .feature-card {
+            transform: translateY(-10px);
+            box-shadow: 0 22px 45px rgba(79, 70, 229, 0.18);
+        }
+
+        /* ===== CTA ===== */
+        .cta {
+            background-color: #4f46e5;
+            color: #fff;
+            padding: 80px 20px;
+            text-align: center;
+        }
+
+        /* ===== FOOTER ===== */
+        footer {
+            background-color: #1f2937;
+            color: #d1d5db;
+            padding: 20px;
+            text-align: center;
+        }
+    </style>
+</head>
+
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar navbar-expand-lg px-4 py-3">
+    <span class="navbar-brand">HireHub</span>
+
+    <div class="ms-auto d-flex align-items-center">
+        <a class="nav-link" href="#home">Home</a>
+        <a class="nav-link" href="#features">Features</a>
+        <a class="nav-link" href="#portals">Portals</a>
+
+        <a href="#portals" class="btn btn-login me-2">Login</a>
+        <a href="#portals" class="btn btn-start">Get Started</a>
+    </div>
+</nav>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="home">
+    <div class="container">
+        <div class="row align-items-center">
+
+            <div class="col-md-6 text-center text-md-start">
+                <h1>AI-Powered Career Platform</h1>
+                <p>Connect with opportunities, get personalized career guidance, and land your dream job.</p>
+                <div class="mt-4">
+                    <a href="#portals" class="btn btn-light btn-lg me-3">Register Now </a>
+                    <a href="/jobs" class="btn btn-outline-light btn-lg">Browse Jobs</a>
+                </div>
+            </div>
+
+            
+
+        </div>
+    </div>
+</section>
+
+<!-- ===== FOR EVERYONE ===== -->
+<section class="container mt-5 mb-5" id="portals">
+    <h2 class="section-title">For Everyone in the Career Journey</h2>
+
+    <div class="row g-4">
+
+        <div class="col-md-3">
+            <div class="feature-card text-center">
+
+                <i class="bi bi-book"></i>
+                <h5>Candidates</h5>
+                <p>Build profiles, take skill tests, and track applications.</p>
+                <div class="mt-3">
+                    <a href="/login?role=candidate" class="btn btn-outline-primary w-75 mb-2">
+                        Login
+                    </a>
+                    <br>
+                    <a href="/register?role=candidate" class="text-decoration-none small">
+                        Register New Account
+                    </a>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="feature-card text-center">
+                <i class="bi bi-book"></i>
+                <h5>Recruiters</h5>
+                <p>Post jobs and manage hiring with AI-powered tools.</p>
+                <div class="mt-3">
+                    <a href="/login?role=recruiter" class="btn btn-outline-primary w-75 mb-2">
+                            Login
+                    </a>
+                    <br>
+                    <a href="/register?role=recruiter" class="text-decoration-none small">
+                        Register New Account
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="feature-card text-center">
+                <i class="bi bi-person-workspace"></i>
+                <h5>Mentors</h5>
+                <p>Guide students, review resumes, and share expertise.</p>
+                <div class="mt-3">
+                    <a href="/login?role=mentor" class="btn btn-outline-primary w-75 mb-2">
+                        Login
+                    </a>
+                    <br>
+                    <a href="/register?role=mentor" class="text-decoration-none small">
+                        Register New Account
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="feature-card text-center">
+                <i class="bi bi-shield-check"></i>
+                <h5>Admins</h5>
+                <p>Monitor platform activity and ensure system safety.</p>
+                <div class="mt-3">
+                    <a href="/login?role=admin" class="btn btn-outline-dark w-75">
+                        Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+
+<!-- ===== AI FEATURES ===== -->
+<section class="container mt-5 mb-5" id="features">
+    <h2 class="section-title">AI-Powered Features</h2>
+    <p class="text-center mb-4">Smart tools to accelerate your career</p>
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="feature-card">
+                <i class="bi bi-file-earmark-text"></i>
+                <h5>Resume Analyzer</h5>
+                <p>Instant AI-based resume feedback.</p>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="feature-card">
+                <i class="bi bi-lightning-charge"></i>
+                <h5>Smart Job Matching</h5>
+                <p>Find jobs tailored to your skills.</p>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="feature-card">
+                <i class="bi bi-lightbulb"></i>
+                <h5>Skill Gap Analysis</h5>
+                <p>Identify missing skills and learning paths.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ===== CTA ===== -->
+<section class="cta">
+    <h2>Ready to Start Your Journey?</h2>
+    <p>Join thousands of students and recruiters today.</p>
+    <a href="#portals" class="btn btn-light btn-lg mt-3">Create Your Account</a>
+</section>
+
+<!-- ===== FOOTER ===== -->
+<footer>
+    AI-Based Hiring & Career Guidance Platform
+</footer>
+
+</body>
+</html>

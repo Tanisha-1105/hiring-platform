@@ -1,0 +1,5 @@
+flask
+mysql-connector-python
+Werkzeug
+PyMuPDF
+flask-socketio

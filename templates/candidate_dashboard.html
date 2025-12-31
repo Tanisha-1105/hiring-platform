@@ -1,0 +1,1482 @@
+<!-- Candidate Dashboard Template -->
+{% extends "base.html" %}
+{% block title %}Candidate Dashboard | HireHub{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+
+        <div class="col-md-3 candidate-sidebar">
+            <h5 class="sidebar-title"><i class="bi bi-person-badge-fill me-2"></i> Candidate Panel</h5>
+            
+            <a href="#dashboard" class="sidebar-link active"><i class="bi bi-speedometer2 me-2"></i> Dashboard</a>
+            <a href="#profile" class="sidebar-link"><i class="bi bi-person-circle me-2"></i> My Profile</a>
+            <a href="#ai-assessments" class="sidebar-link"><i class="bi bi-robot me-2"></i> AI Assessments</a>
+            <a href="#skill-analysis" class="sidebar-link"><i class="bi bi-bar-chart-line me-2"></i> Skill Analysis</a>
+            
+            {% if profile_completed %}
+                <a href="#recommended-jobs" class="sidebar-link"><i class="bi bi-stars me-2"></i> Recommended Jobs</a>
+                <a href="#jobs" class="sidebar-link"><i class="bi bi-briefcase me-2"></i> Browse Jobs</a>
+                <a href="#applications" class="sidebar-link"><i class="bi bi-file-earmark-check me-2"></i> My Applications</a>
+                <a href="#mentors" class="sidebar-link"><i class="bi bi-mortarboard me-2"></i> Find a Mentor</a>
+            {% else %}
+                <div class="px-3 mt-3">
+                    <span class="badge bg-light text-dark w-100 p-2 shadow-sm" style="white-space: normal;">
+                        Complete Profile to Unlock Jobs Matching & Application Features!
+                    </span>
+                </div>
+            {% endif %}
+            
+            <hr>
+            <a href="/logout" class="sidebar-link logout"><i class="bi bi-door-open me-2"></i> Logout</a>
+        </div>
+
+        <div class="col-md-9 p-5">
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h3 class="fw-bold"><i class="bi bi-person-workspace me-2"></i>Welcome Candidate</h3>
+                    <p class="text-muted mb-0">Track your AI scores and career journey</p>
+                </div>
+            </div>
+
+            <div class="card p-4 mb-4 shadow-sm">
+                <h6 class="fw-semibold mb-2">Profile Completion</h6>
+                <div class="progress">
+                    <div class="progress-bar bg-success" id="completion-bar" style="width: {{ profile_percent }}%" 
+                         data-auto="{{ 'false' if profile_completed else 'true' }}">
+                        {{ profile_percent }}%
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section active-section" id="dashboard">
+                <div class="row g-4">
+                    <div class="col-md-4">
+                        <div class="card p-4 shadow-sm border-0 bg-primary text-white text-center">
+                            <h6>Avg. Test Score</h6>
+                            <h2>78%</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-4 shadow-sm border-0 bg-primary text-white text-center">
+                            <h6>Jobs Applied</h6>
+                            <h2>{{ applied_count if applied_count else 0 }}</h2>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card p-4 shadow-sm border-0 bg-info text-white text-center">
+                            <h6>Profile Strength</h6>
+                            <h2>{{ profile_percent }}%</h2>
+                        </div>
+                    </div>
+                </div>
+                <div class="card mt-4 p-4 shadow-sm border-0 bg-light">
+                    <h5>Quick Overview</h5>
+                    <p class="mb-0">Keep your profile updated to attract recruiters. You can browse and apply for jobs once your profile is 100% complete.</p>
+                </div>
+            </div>
+
+            <div class="card shadow-sm p-4 dashboard-section" id="profile">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h4 class="mb-0">My Professional Profile</h4>
+                    <div id="profile-actions">
+                        {% if profile %}
+                            <button class="btn btn-outline-info btn-sm me-2" data-bs-toggle="modal" data-bs-target="#viewCandidateProfileModal">
+                                <i class="bi bi-eye me-1"></i> View Profile
+                            </button>
+                            <button class="btn btn-outline-primary btn-sm me-2" onclick="toggleEditMode(true)">
+                                <i class="bi bi-pencil me-1"></i> Edit Profile
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="confirmDeleteProfile()">
+                                <i class="bi bi-trash me-1"></i> Delete Profile
+                            </button>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div id="view-mode" class="{% if not profile %}d-none{% endif %}">
+                    {% if profile %}
+                        <div class="row mb-4 align-items-center">
+                            <div class="col-md-2 text-center">
+                                {% if profile.photo_file %}
+                                    <img src="{{ url_for('static', filename='uploads/' + profile.photo_file) }}" alt="Profile Photo" class="profile-avatar rounded-circle" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #198754;">
+                                {% else %}
+                                    <div class="profile-avatar rounded-circle bg-light d-flex align-items-center justify-content-center" style="width: 120px; height: 120px; margin: 0 auto; border: 3px solid #198754;">
+                                        <i class="bi bi-person-fill fs-3 text-muted"></i>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-10">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Full Name</p>
+                                <p class="fs-4 fw-bold mb-2">{{ profile.first_name }} {{ profile.last_name }}</p>
+                                <p class="text-muted mb-1 small uppercase fw-bold">Headline</p>
+                                <p class="fs-6 fw-semibold text-success">{{ profile.headline if profile.headline else 'Not Set' }}</p>
+                            </div>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-md-12">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Professional Summary</p>
+                                <p>{{ profile.bio if profile.bio else 'No bio provided.' }}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Education</p>
+                                <p class="fw-semibold">{{ profile.degree if profile.degree else 'Not Set' }} {% if profile.college_university %}- {{ profile.college_university }}{% endif %}</p>
+                                {% if profile.specialization %}<p class="text-muted mb-0">Specialization: {{ profile.specialization }}</p>{% endif %}
+                                {% if profile.cgpa_percentage %}<p class="text-muted mb-0">CGPA/Percentage: {{ profile.cgpa_percentage }}</p>{% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Primary Skills</p>
+                                <p class="fw-semibold">{{ profile.primary_skills if profile.primary_skills else 'Not Set' }}</p>
+                            </div>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Secondary Skills</p>
+                                <p class="fw-semibold">{{ profile.secondary_skills if profile.secondary_skills else 'Not Set' }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Frameworks & Libraries</p>
+                                <p class="fw-semibold">{{ profile.frameworks_libraries if profile.frameworks_libraries else 'Not Set' }}</p>
+                            </div>
+                        </div>
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Databases</p>
+                                <p class="fw-semibold">{{ profile.databases if profile.databases else 'Not Set' }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Cloud Platforms</p>
+                                <p class="fw-semibold">{{ profile.cloud_platforms if profile.cloud_platforms else 'Not Set' }}</p>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <p class="text-muted mb-1 small uppercase fw-bold">Resume</p>
+                                {% if profile.resume_file %}
+                                    <a href="{{ url_for('static', filename='uploads/' + profile.resume_file) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                        <i class="bi bi-file-earmark-pdf"></i> View Saved Resume
+                                    </a>
+                                {% else %}
+                                    <span class="text-danger">No resume uploaded.</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center py-4">
+                            <i class="bi bi-person-exclamation fs-1 text-muted"></i>
+                            <p class="mt-2">No profile created yet. Click Edit Profile to get started.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div id="edit-mode" class="{% if profile %}d-none{% endif %}">
+                    <form method="POST" action="/candidate-dashboard" enctype="multipart/form-data">
+                        <h5 class="text-primary mb-3"><i class="bi bi-person-badge me-2"></i>Basic Information</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>First Name *</label>
+                                <input type="text" name="firstName" class="form-control track" value="{{ profile.first_name if profile else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Last Name *</label>
+                                <input type="text" name="lastName" class="form-control track" value="{{ profile.last_name if profile else '' }}" required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Professional Headline *</label>
+                            <input type="text" name="headline" class="form-control track" placeholder="e.g. Aspiring Java Developer" value="{{ profile.headline if profile else '' }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label>Bio / Summary *</label>
+                            <textarea name="about" class="form-control track" rows="3" required>{{ profile.bio if profile else '' }}</textarea>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-geo-alt me-2"></i>Personal & Availability</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Current Location</label>
+                                <input type="text" id="current_location_input" name="current_location" class="form-control track" placeholder="City, State, Country" value="{{ profile.current_location if profile else '' }}" autocomplete="off">
+                                <div id="location-suggestions" class="position-absolute bg-white border rounded shadow-sm" style="display: none; max-height: 200px; overflow-y: auto; width: 100%; z-index: 1000; margin-top: -1px;"></div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Preferred Work Mode</label>
+                                <select name="preferred_work_mode" class="form-select track">
+                                    <option value="">Select...</option>
+                                    <option value="Remote" {% if profile and profile.preferred_work_mode == 'Remote' %}selected{% endif %}>Remote</option>
+                                    <option value="Hybrid" {% if profile and profile.preferred_work_mode == 'Hybrid' %}selected{% endif %}>Hybrid</option>
+                                    <option value="Onsite" {% if profile and profile.preferred_work_mode == 'Onsite' %}selected{% endif %}>Onsite</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label>Open to Relocation</label>
+                                <select name="open_to_relocation" class="form-select track">
+                                    <option value="No" {% if profile and profile.open_to_relocation == 'No' %}selected{% endif %}>No</option>
+                                    <option value="Yes" {% if profile and profile.open_to_relocation == 'Yes' %}selected{% endif %}>Yes</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Job Type Preference</label>
+                                <select name="job_type_preference" class="form-select track">
+                                    <option value="">Select...</option>
+                                    <option value="Full-time" {% if profile and profile.job_type_preference == 'Full-time' %}selected{% endif %}>Full-time</option>
+                                    <option value="Internship" {% if profile and profile.job_type_preference == 'Internship' %}selected{% endif %}>Internship</option>
+                                    <option value="Part-time" {% if profile and profile.job_type_preference == 'Part-time' %}selected{% endif %}>Part-time</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Notice Period</label>
+                                <input type="text" name="notice_period" class="form-control track" placeholder="e.g. Immediate, 30 days" value="{{ profile.notice_period if profile else '' }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Availability Start Date</label>
+                            <input type="date" name="availability_date" class="form-control track" value="{{ profile.availability_date if profile else '' }}">
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-bullseye me-2"></i>Career & Role Preferences</h5>
+                        <div class="mb-3">
+                            <label>Preferred Job Role</label>
+                            <input type="text" name="preferred_job_role" class="form-control track" placeholder="e.g. Backend Developer, Data Analyst" value="{{ profile.preferred_job_role if profile else '' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label>Career Objective</label>
+                            <textarea name="career_objective" class="form-control track" rows="3" placeholder="Describe your career goals and aspirations">{{ profile.career_objective if profile else '' }}</textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label>Interested Domains</label>
+                            <input type="text" name="interested_domains" class="form-control track" placeholder="Backend, Web Development, AI, Data Science" value="{{ profile.interested_domains if profile else '' }}">
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-code-square me-2"></i>Skills & Technical Details</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Primary Skills *</label>
+                                <input type="text" name="primary_skills" class="form-control track" placeholder="Python, Java, JavaScript" value="{{ profile.primary_skills if profile else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Secondary Skills</label>
+                                <input type="text" name="secondary_skills" class="form-control track" placeholder="Git, Docker, Testing" value="{{ profile.secondary_skills if profile else '' }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Skill Proficiency Level</label>
+                            <select name="skill_proficiency" class="form-select track">
+                                <option value="Beginner" {% if profile and profile.skill_proficiency == 'Beginner' %}selected{% endif %}>Beginner</option>
+                                <option value="Intermediate" {% if profile and profile.skill_proficiency == 'Intermediate' %}selected{% endif %}>Intermediate</option>
+                                <option value="Advanced" {% if profile and profile.skill_proficiency == 'Advanced' %}selected{% endif %}>Advanced</option>
+                            </select>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Frameworks & Libraries</label>
+                                <input type="text" name="frameworks_libraries" class="form-control track" placeholder="React, Django, Flask" value="{{ profile.frameworks_libraries if profile else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Databases</label>
+                                <input type="text" name="databases" class="form-control track" placeholder="MySQL, MongoDB, PostgreSQL" value="{{ profile.databases if profile else '' }}">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Tools & Technologies</label>
+                                <input type="text" name="tools_technologies" class="form-control track" placeholder="Git, VS Code, Postman" value="{{ profile.tools_technologies if profile else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Cloud Platforms</label>
+                                <input type="text" name="cloud_platforms" class="form-control track" placeholder="AWS, Azure, Google Cloud" value="{{ profile.cloud_platforms if profile else '' }}">
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-folder me-2"></i>Projects</h5>
+                        <div class="mb-3">
+                            <label>Projects (One per line: Title | Description | Technologies | GitHub Link)</label>
+                            <textarea name="projects" class="form-control track" rows="4" placeholder="E-Commerce App | Full-stack shopping platform | React, Node.js, MongoDB | github.com/user/project">{{ profile.projects if profile else '' }}</textarea>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-briefcase me-2"></i>Work Experience</h5>
+                        <div class="mb-3">
+                            <label>Experience / Internships (One per line: Company | Role | Duration | Responsibilities)</label>
+                            <textarea name="work_experience" class="form-control track" rows="4" placeholder="Tech Corp | Software Intern | Jun 2024 - Aug 2024 | Developed REST APIs">{{ profile.work_experience if profile else '' }}</textarea>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-mortarboard me-2"></i>Education</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Degree *</label>
+                                <input type="text" name="degree" class="form-control track" placeholder="Bachelor of Technology" value="{{ profile.degree if profile else '' }}" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Specialization</label>
+                                <input type="text" name="specialization" class="form-control track" placeholder="Computer Science" value="{{ profile.specialization if profile else '' }}">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>College / University *</label>
+                            <input type="text" name="college_university" class="form-control track" placeholder="University Name" value="{{ profile.college_university if profile else '' }}" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label>Start Year</label>
+                                <input type="number" name="education_start_year" class="form-control track" placeholder="2020" value="{{ profile.education_start_year if profile else '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>End Year</label>
+                                <input type="number" name="education_end_year" class="form-control track" placeholder="2024" value="{{ profile.education_end_year if profile else '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>CGPA / Percentage</label>
+                                <input type="text" name="cgpa_percentage" class="form-control track" placeholder="8.5 / 85%" value="{{ profile.cgpa_percentage if profile else '' }}">
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-link-45deg me-2"></i>Portfolio & Social Links</h5>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>GitHub Profile URL</label>
+                                <input type="url" name="github_url" class="form-control track" placeholder="https://github.com/username" value="{{ profile.github_url if profile else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>LinkedIn Profile URL</label>
+                                <input type="url" name="linkedin_url" class="form-control track" placeholder="https://linkedin.com/in/username" value="{{ profile.linkedin_url if profile else '' }}">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Portfolio Website URL</label>
+                                <input type="url" name="portfolio_url" class="form-control track" placeholder="https://yourportfolio.com" value="{{ profile.portfolio_url if profile else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Coding Platform Links</label>
+                                <input type="text" name="coding_platforms" class="form-control track" placeholder="LeetCode, HackerRank profiles" value="{{ profile.coding_platforms if profile else '' }}">
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-award me-2"></i>Certifications & Achievements</h5>
+                        <div class="mb-3">
+                            <label>Certifications (One per line: Title | Organization | Year | URL)</label>
+                            <textarea name="certifications" class="form-control track" rows="3" placeholder="AWS Certified Developer | Amazon | 2024 | credentials.aws.com/123">{{ profile.certifications if profile else '' }}</textarea>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-chat-dots me-2"></i>Soft Skills & Languages</h5>
+                        <div class="mb-3">
+                            <label>Soft Skills</label>
+                            <input type="text" name="soft_skills" class="form-control track" placeholder="Communication, Leadership, Problem Solving" value="{{ profile.soft_skills if profile else '' }}">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label>Languages Known</label>
+                                <input type="text" name="languages_known" class="form-control track" placeholder="English, Hindi, Spanish" value="{{ profile.languages_known if profile else '' }}">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label>Language Proficiency</label>
+                                <input type="text" name="language_proficiency" class="form-control track" placeholder="English-Fluent, Hindi-Native" value="{{ profile.language_proficiency if profile else '' }}">
+                            </div>
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-person-check me-2"></i>Mentorship & Platform Preferences</h5>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label>Open to Mentorship</label>
+                                <select name="open_to_mentorship" class="form-select track">
+                                    <option value="Yes" {% if profile and profile.open_to_mentorship == 'Yes' %}selected{% endif %}>Yes</option>
+                                    <option value="No" {% if profile and profile.open_to_mentorship == 'No' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Willing to Take AI Assessments</label>
+                                <select name="willing_ai_assessments" class="form-select track">
+                                    <option value="Yes" {% if profile and profile.willing_ai_assessments == 'Yes' %}selected{% endif %}>Yes</option>
+                                    <option value="No" {% if profile and profile.willing_ai_assessments == 'No' %}selected{% endif %}>No</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label>Profile Visibility</label>
+                                <select name="profile_visibility" class="form-select track">
+                                    <option value="Public" {% if profile and profile.profile_visibility == 'Public' %}selected{% endif %}>Public</option>
+                                    <option value="Private" {% if profile and profile.profile_visibility == 'Private' %}selected{% endif %}>Private</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label>Preferred Mentor Expertise</label>
+                            <input type="text" name="preferred_mentor_expertise" class="form-control track" placeholder="Backend Development, System Design" value="{{ profile.preferred_mentor_expertise if profile else '' }}">
+                        </div>
+                        
+                        <hr class="my-4">
+                        <h5 class="text-primary mb-3"><i class="bi bi-file-earmark me-2"></i>Documents</h5>
+                        <div class="mb-3">
+                            <label>Upload Profile Photo (JPG/PNG)</label>
+                            <input type="file" name="photo" class="form-control track" accept="image/*">
+                        </div>
+                        <div class="mb-4">
+                            <label>Upload Resume (PDF only) *</label>
+                            <input type="file" name="resume" class="form-control track" accept=".pdf" {% if not profile %}required{% endif %}>
+                        </div>
+                        
+                        <div class="d-flex gap-2">
+                            <button type="submit" class="btn btn-primary flex-grow-1"><i class="bi bi-save me-1"></i>Save Profile</button>
+                            {% if profile %}
+                                <button type="button" class="btn btn-secondary" onclick="toggleEditMode(false)">Cancel</button>
+                            {% endif %}
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="ai-assessments">
+                <h4 class="mb-3">AI Assessments</h4>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <h5>Technical Test</h5>
+                            <p class="text-muted small">Evaluate your core engineering knowledge.</p>
+                            <button class="btn btn-sm btn-primary">Start Test</button>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <h5>AI Mock Interview</h5>
+                            <p class="text-muted small">Real-time interview simulation with AI feedback.</p>
+                            <button class="btn btn-sm btn-outline-primary">Start Interview</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="skill-analysis">
+                <h4 class="mb-3">Skill Gap Analysis</h4>
+                <div class="alert alert-info">
+                    Based on your test results, we recommend focusing on <strong>SQL Joins</strong> and <strong>Flask Routing</strong>.
+                </div>
+                <p>Improve these areas to increase your job match percentage by 15%.</p>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="recommended-jobs">
+                <h4 class="mb-3">Recommended for You</h4>
+                <p class="text-muted">AI-matched positions based on your resume parsing and scores.</p>
+                <div class="alert alert-secondary">Complete your profile to see tailored job matches.</div>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="jobs">
+                <h4 class="mb-3">Browse All Jobs</h4>
+                <p class="text-muted">Explore all job and internship listings currently active.</p>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="applications">
+                <h4 class="mb-3">My Applications</h4>
+                <p class="text-muted">Track your status (Applied / Shortlisted / Selected / Rejected).</p>
+                <table class="table mt-3">
+                    <thead class="table-light">
+                        <tr><th>Role</th><th>Company</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="3" class="text-center text-muted">No applications found.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card p-4 shadow-sm dashboard-section" id="mentors">
+                <h4 class="mb-3"><i class="bi bi-search me-2"></i>Find a Mentor</h4>
+                <p class="text-muted mb-4">Connect with industry experts for guidance and resume feedback</p>
+                
+                <!-- Mentorship Requests Status -->
+                {% if mentorship_requests %}
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>My Mentorship Requests</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Mentor</th>
+                                        <th>Company</th>
+                                        <th>Status</th>
+                                        <th>Requested On</th>
+                                        <th>Details</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for req in mentorship_requests %}
+                                    <tr>
+                                        <td><strong>{{ req.mentor_name }}</strong></td>
+                                        <td>{{ req.company if req.company else 'N/A' }}</td>
+                                        <td>
+                                            {% if req.status == 'Pending' %}
+                                                <span class="badge bg-warning">Pending</span>
+                                            {% elif req.status == 'Accepted' %}
+                                                <span class="badge bg-success">Accepted</span>
+                                            {% elif req.status == 'Rejected' %}
+                                                <span class="badge bg-danger">Rejected</span>
+                                            {% elif req.status == 'Completed' %}
+                                                <span class="badge bg-info">Completed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td><small>{{ req.created_at.strftime('%d %b %Y') if req.created_at else 'N/A' }}</small></td>
+                                        <td>
+                                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#requestDetailModal{{ req.id }}">
+                                                <i class="bi bi-info-circle"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    
+                                    <!-- Request Detail Modal -->
+                                    <div class="modal fade" id="requestDetailModal{{ req.id }}" tabindex="-1" aria-hidden="true">
+                                        <div class="modal-dialog modal-dialog-centered">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-info text-white">
+                                                    <h6 class="modal-title">Request Details - {{ req.mentor_name }}</h6>
+                                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p><strong>Status:</strong> 
+                                                        {% if req.status == 'Pending' %}
+                                                            <span class="badge bg-warning">Pending</span>
+                                                        {% elif req.status == 'Accepted' %}
+                                                            <span class="badge bg-success">Accepted</span>
+                                                        {% elif req.status == 'Rejected' %}
+                                                            <span class="badge bg-danger">Rejected</span>
+                                                        {% elif req.status == 'Completed' %}
+                                                            <span class="badge bg-info">Completed</span>
+                                                        {% endif %}
+                                                    </p>
+                                                    <p><strong>Expertise:</strong> {{ req.expertise if req.expertise else 'N/A' }}</p>
+                                                    <hr>
+                                                    <p><strong>Your Message:</strong></p>
+                                                    <p class="bg-light p-2 rounded">{{ req.request_message }}</p>
+                                                    {% if req.mentor_feedback %}
+                                                        <hr>
+                                                        <p><strong>Mentor Feedback:</strong></p>
+                                                        <p class="bg-success bg-opacity-10 p-2 rounded border border-success">{{ req.mentor_feedback }}</p>
+                                                    {% endif %}
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <!-- Search and Filter Section -->
+                <div class="row mb-4">
+                    <div class="col-md-5">
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-search"></i></span>
+                            <input type="text" id="mentor-search" class="form-control" placeholder="Search by name, expertise, or company...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="expertise-filter" class="form-select">
+                            <option value="">All Expertise</option>
+                            <option value="Frontend Development">Frontend Development</option>
+                            <option value="Backend Development">Backend Development</option>
+                            <option value="Full Stack">Full Stack</option>
+                            <option value="Data Science">Data Science</option>
+                            <option value="Machine Learning">Machine Learning</option>
+                            <option value="DevOps">DevOps</option>
+                            <option value="Cloud Computing">Cloud Computing</option>
+                            <option value="Mobile Development">Mobile Development</option>
+                            <option value="UI/UX Design">UI/UX Design</option>
+                            <option value="Product Management">Product Management</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select id="mode-filter" class="form-select">
+                            <option value="">All Modes</option>
+                            <option value="Online">Online</option>
+                            <option value="Offline">Offline</option>
+                            <option value="Hybrid">Hybrid</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" onclick="searchMentors()"><i class="bi bi-funnel me-1"></i>Filter</button>
+                    </div>
+                </div>
+
+                <!-- Mentors List -->
+                <div id="mentors-container">
+                    {% if available_mentors %}
+                        <div class="row g-4">
+                            {% for mentor in available_mentors %}
+                            <div class="col-md-6 mentor-card" 
+                                 data-name="{{ mentor.name|lower }}" 
+                                 data-expertise="{{ mentor.expertise|lower }}" 
+                                 data-company="{{ mentor.company|lower }}"
+                                 data-mode="{{ mentor.mode }}">
+                                <div class="card h-100 shadow-sm hover-shadow">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-start mb-3">
+                                            <div class="flex-shrink-0">
+                                                {% if mentor.photo_file %}
+                                                    <img src="{{ url_for('static', filename='uploads/' ~ mentor.photo_file) }}" 
+                                                         alt="{{ mentor.name }}" 
+                                                         class="rounded-circle" 
+                                                         style="width:60px;height:60px;object-fit:cover;">
+                                                {% else %}
+                                                    <div class="bg-info text-white rounded-circle d-flex align-items-center justify-content-center" 
+                                                         style="width:60px;height:60px;font-size:24px;">
+                                                        {{ mentor.name[0]|upper }}
+                                                    </div>
+                                                {% endif %}
+                                            </div>
+                                            <div class="flex-grow-1 ms-3">
+                                                <h5 class="mb-1">{{ mentor.name }}</h5>
+                                                <p class="text-muted mb-1 small">{{ mentor.designation }} at {{ mentor.company }}</p>
+                                                <span class="badge bg-primary">{{ mentor.expertise }}</span>
+                                            </div>
+                                        </div>
+                                        
+                                        <p class="text-muted small mb-2">{{ mentor.bio[:100] }}{% if mentor.bio|length > 100 %}...{% endif %}</p>
+                                        
+                                        <div class="mb-2">
+                                            <small class="text-muted"><i class="bi bi-bookmark me-1"></i>Mentoring:</small>
+                                            <small class="d-block">{{ mentor.mentoring_areas[:80] }}{% if mentor.mentoring_areas|length > 80 %}...{% endif %}</small>
+                                        </div>
+                                        
+                                        <div class="row text-center border-top pt-2 mt-2">
+                                            <div class="col-4">
+                                                <small class="text-muted d-block">Experience</small>
+                                                <strong>{{ mentor.experience }}y</strong>
+                                            </div>
+                                            <div class="col-4">
+                                                <small class="text-muted d-block">Mode</small>
+                                                <strong>{{ mentor.mode }}</strong>
+                                            </div>
+                                            <div class="col-4">
+                                                <small class="text-muted d-block">Days</small>
+                                                <strong>{{ mentor.available_days }}</strong>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-3 d-flex gap-2">
+                                            <button class="btn btn-sm btn-outline-info" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#mentorDetailModal{{ mentor.mentor_id }}">
+                                                <i class="bi bi-eye me-1"></i>View Details
+                                            </button>
+                                            <button class="btn btn-sm btn-success flex-grow-1" 
+                                                    data-bs-toggle="modal" 
+                                                    data-bs-target="#requestMentorshipModal{{ mentor.mentor_id }}">
+                                                <i class="bi bi-send me-1"></i>Request Mentorship
+                                            </button>
+                                            <a href="{{ mentor.linkedin }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-linkedin"></i>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Mentor Detail Modal -->
+                            <div class="modal fade" id="mentorDetailModal{{ mentor.mentor_id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-lg modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-primary text-white">
+                                            <h5 class="modal-title"><i class="bi bi-person-badge me-2"></i>{{ mentor.name }}</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <div class="modal-body p-4">
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Designation & Company</strong>
+                                                    <p class="fs-6">{{ mentor.designation }} at {{ mentor.company }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Primary Expertise</strong>
+                                                    <p class="fs-6 text-primary">{{ mentor.expertise }}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <strong class="text-muted small">About</strong>
+                                                <p class="border-start border-3 ps-3">{{ mentor.bio }}</p>
+                                            </div>
+                                            
+                                            <div class="row mb-3">
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Mentoring Areas</strong>
+                                                    <p>{{ mentor.mentoring_areas }}</p>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <strong class="text-muted small">Availability</strong>
+                                                    <p>{{ mentor.available_days }} | {{ mentor.time_slot }}</p>
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="bg-light p-3 rounded d-flex justify-content-around text-center">
+                                                <div>
+                                                    <span class="d-block text-muted small">Experience</span>
+                                                    <span class="fw-bold">{{ mentor.experience }} Years</span>
+                                                </div>
+                                                <div>
+                                                    <span class="d-block text-muted small">Mode</span>
+                                                    <span class="fw-bold">{{ mentor.mode }}</span>
+                                                </div>
+                                                <div>
+                                                    <span class="d-block text-muted small">Max Mentees</span>
+                                                    <span class="fw-bold">{{ mentor.max_candidates }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer bg-light">
+                                            <a href="{{ mentor.linkedin }}" target="_blank" class="btn btn-primary btn-sm">
+                                                <i class="bi bi-linkedin me-1"></i>Visit LinkedIn
+                                            </a>
+                                            <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Request Mentorship Modal -->
+                            <div class="modal fade" id="requestMentorshipModal{{ mentor.mentor_id }}" tabindex="-1" aria-hidden="true">
+                                <div class="modal-dialog modal-dialog-centered">
+                                    <div class="modal-content">
+                                        <div class="modal-header bg-success text-white">
+                                            <h5 class="modal-title"><i class="bi bi-send me-2"></i>Request Mentorship from {{ mentor.name }}</h5>
+                                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                                        </div>
+                                        <form method="POST" action="/request-mentorship/{{ mentor.mentor_id }}">
+                                            <div class="modal-body p-4">
+                                                <div class="mb-3">
+                                                    <label class="form-label fw-bold">Why do you want mentorship from {{ mentor.name }}?</label>
+                                                    <textarea name="message" class="form-control" rows="5" placeholder="Tell the mentor about your goals and why you'd like their guidance..." required></textarea>
+                                                    <small class="text-muted">Be specific about what you hope to learn or achieve.</small>
+                                                </div>
+                                                <div class="alert alert-info mb-0">
+                                                    <small>
+                                                        <i class="bi bi-info-circle me-1"></i>
+                                                        <strong>Mentor Details:</strong><br>
+                                                        Expertise: {{ mentor.expertise }}<br>
+                                                        Availability: {{ mentor.available_days }} | {{ mentor.time_slot }}<br>
+                                                        Mode: {{ mentor.mode }}
+                                                    </small>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="submit" class="btn btn-success">
+                                                    <i class="bi bi-send me-1"></i>Send Request
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>No verified mentors found at the moment. Check back later!
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+        </div> </div> </div> <div class="modal fade" id="viewCandidateProfileModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-person-lines-fill me-2"></i> Full Professional Profile</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                {% if profile %}
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Full Name</label>
+                            <p class="fs-5 fw-bold">{{ profile.first_name }} {{ profile.last_name }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Headline</label>
+                            <p class="fs-5 text-success fw-semibold">{{ profile.headline }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="text-muted small uppercase fw-bold">Bio</label>
+                        <p>{{ profile.bio }}</p>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Education</label>
+                            <p><strong>{{ profile.degree if profile.degree else 'Not Set' }}</strong></p>
+                            {% if profile.college_university %}<p class="mb-1">{{ profile.college_university }}</p>{% endif %}
+                            {% if profile.specialization %}<p class="mb-1">Specialization: {{ profile.specialization }}</p>{% endif %}
+                            {% if profile.cgpa_percentage %}<p class="text-muted">CGPA: {{ profile.cgpa_percentage }}</p>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Primary Skills</label>
+                            <p>{{ profile.primary_skills if profile.primary_skills else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Secondary Skills</label>
+                            <p>{{ profile.secondary_skills if profile.secondary_skills else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Frameworks & Libraries</label>
+                            <p>{{ profile.frameworks_libraries if profile.frameworks_libraries else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Databases</label>
+                            <p>{{ profile.databases if profile.databases else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Cloud Platforms</label>
+                            <p>{{ profile.cloud_platforms if profile.cloud_platforms else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Work Experience</label>
+                            <p>{{ profile.work_experience if profile.work_experience else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Projects</label>
+                            <p>{{ profile.projects if profile.projects else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Tools & Technologies</label>
+                            <p>{{ profile.tools_technologies if profile.tools_technologies else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Certifications</label>
+                            <p>{{ profile.certifications if profile.certifications else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Soft Skills</label>
+                            <p>{{ profile.soft_skills if profile.soft_skills else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Languages Known</label>
+                            <p>{{ profile.languages_known if profile.languages_known else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Current Location</label>
+                            <p>{{ profile.current_location if profile.current_location else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Preferred Work Mode</label>
+                            <p>{{ profile.preferred_work_mode if profile.preferred_work_mode else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Job Type Preference</label>
+                            <p>{{ profile.job_type_preference if profile.job_type_preference else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Notice Period</label>
+                            <p>{{ profile.notice_period if profile.notice_period else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Portfolio Website</label>
+                            <p>{% if profile.portfolio_url %}<a href="{{ profile.portfolio_url }}" target="_blank">{{ profile.portfolio_url }}</a>{% else %}Not Set{% endif %}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Coding Platforms</label>
+                            <p>{{ profile.coding_platforms if profile.coding_platforms else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">Open to Mentorship</label>
+                            <p>{{ profile.open_to_mentorship if profile.open_to_mentorship else 'Not Set' }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-muted small uppercase fw-bold">AI Assessments</label>
+                            <p>{{ profile.willing_ai_assessments if profile.willing_ai_assessments else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="text-muted small uppercase fw-bold">Career Objective</label>
+                            <p>{{ profile.career_objective if profile.career_objective else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="text-muted small uppercase fw-bold">Interested Domains</label>
+                            <p>{{ profile.interested_domains if profile.interested_domains else 'Not Set' }}</p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="text-muted small uppercase fw-bold">GitHub</label>
+                            <p>{% if profile.github_url %}<a href="{{ profile.github_url }}" target="_blank">{{ profile.github_url }}</a>{% else %}Not Set{% endif %}</p>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <label class="text-muted small uppercase fw-bold">LinkedIn</label>
+                            <p>{% if profile.linkedin_url %}<a href="{{ profile.linkedin_url }}" target="_blank">{{ profile.linkedin_url }}</a>{% else %}Not Set{% endif %}</p>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Profile Creation Options Modal -->
+<div class="modal fade" id="profileCreationOptionsModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header bg-gradient" style="background: linear-gradient(135deg, #198754, #157347);">
+                <h5 class="modal-title text-white"><i class="bi bi-person-plus-fill me-2"></i> Create Your Profile</h5>
+            </div>
+            <div class="modal-body p-5">
+                <div class="text-center mb-4">
+                    <p class="lead text-muted">Choose how you'd like to create your profile</p>
+                </div>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="card h-100 border-2 option-card" onclick="fillManually()" style="cursor: pointer; transition: all 0.3s;">
+                            <div class="card-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="bi bi-pencil-square text-primary" style="font-size: 3rem;"></i>
+                                </div>
+                                <h5 class="card-title fw-bold">Fill Manually</h5>
+                                <p class="card-text text-muted">Fill out the profile form step by step with your information</p>
+                                <button class="btn btn-outline-primary mt-3">
+                                    <i class="bi bi-arrow-right-circle me-2"></i>Start Filling
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card h-100 border-2 border-success option-card" onclick="document.getElementById('resume-upload-input').click()" style="cursor: pointer; transition: all 0.3s;">
+                            <div class="card-body text-center p-4">
+                                <div class="mb-3">
+                                    <i class="bi bi-file-earmark-arrow-up text-success" style="font-size: 3rem;"></i>
+                                </div>
+                                <h5 class="card-title fw-bold text-success">Auto-Fill from Resume</h5>
+                                <p class="card-text text-muted">Upload your resume and we'll extract your details automatically</p>
+                                <button class="btn btn-success mt-3">
+                                    <i class="bi bi-upload me-2"></i>Upload Resume
+                                </button>
+                                <input type="file" id="resume-upload-input" accept=".pdf" style="display: none;" onchange="handleResumeUpload(event)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="upload-progress" class="mt-4" style="display: none;">
+                    <div class="text-center mb-2">
+                        <div class="spinner-border text-success" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Analyzing your resume...</p>
+                    </div>
+                    <div class="progress">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" role="progressbar" style="width: 100%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .candidate-sidebar { background: linear-gradient(180deg, #198754, #157347); min-height: 100vh; padding: 20px; color: #fff; position: sticky; top: 0; }
+    .sidebar-title { font-weight: 600; margin-bottom: 25px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; }
+    .sidebar-link { display: flex; align-items: center; gap: 12px; padding: 12px 15px; margin-bottom: 8px; color: #e9f0ff; text-decoration: none !important; border-radius: 8px; transition: 0.2s; }
+    .sidebar-link:hover { background: rgba(255, 255, 255, 0.15); color: #fff; }
+    .sidebar-link.active { background: rgba(255, 255, 255, 0.25); font-weight: 600; }
+    .sidebar-link.logout { color: #ffdddd; }
+
+    .dashboard-section { display: none; animation: fadeIn 0.3s ease-in-out; }
+    .active-section { display: block !important; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    
+    .alert { position: relative; z-index: 1050; margin-bottom: 20px; }
+    .uppercase { text-transform: uppercase; }
+    
+    /* Option Cards Styling */
+    .option-card {
+        border-radius: 12px;
+        transition: all 0.3s ease;
+    }
+    
+    .option-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        border-color: #198754 !important;
+    }
+    
+    /* Profile Avatar Styling */
+    .profile-avatar {
+        display: block;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease;
+    }
+    
+    .profile-avatar:hover {
+        transform: scale(1.05);
+    }
+    
+    /* Modal styling - ensure all content is visible */
+    #viewCandidateProfileModal .modal-body {
+        max-height: 80vh;
+        overflow-y: auto;
+        padding: 1.5rem;
+    }
+    
+    #viewCandidateProfileModal .row {
+        display: flex;
+        flex-wrap: wrap;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    #viewCandidateProfileModal label {
+        display: block;
+        margin-bottom: 0.25rem;
+        visibility: visible;
+    }
+    
+    #viewCandidateProfileModal p {
+        display: block;
+        visibility: visible;
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+    }
+    
+    /* Edit mode and view mode styling */
+    #edit-mode {
+        width: 100%;
+        display: block;
+        visibility: visible;
+        position: relative;
+    }
+    
+    #edit-mode.d-none {
+        display: none !important;
+    }
+    
+    #view-mode.d-none {
+        display: none !important;
+    }
+    
+    #edit-mode form {
+        display: block;
+        width: 100%;
+    }
+    
+    #edit-mode .form-group,
+    #edit-mode .mb-3,
+    #edit-mode .row {
+        display: block !important;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    
+    #edit-mode input[type="text"],
+    #edit-mode input[type="email"],
+    #edit-mode input[type="number"],
+    #edit-mode input[type="date"],
+    #edit-mode input[type="url"],
+    #edit-mode input[type="file"],
+    #edit-mode textarea,
+    #edit-mode select {
+        display: block !important;
+        width: 100% !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin-top: 0.25rem;
+    }
+    
+    /* Fix text overflow in mentor cards */
+    .mentor-card .card-body { overflow: hidden; }
+    .mentor-card h5 { 
+        word-wrap: break-word; 
+        overflow-wrap: break-word; 
+        word-break: break-word;
+        white-space: normal;
+    }
+    .mentor-card p, .mentor-card small, .mentor-card .badge { 
+        word-wrap: break-word; 
+        overflow-wrap: break-word;
+        white-space: normal;
+    }
+    .mentor-card .text-muted { 
+        overflow: hidden;
+        text-overflow: ellipsis;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+    }
+    .badge { 
+        display: inline-block;
+        max-width: 100%;
+        word-wrap: break-word;
+        white-space: normal;
+        text-align: center;
+    }
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const links = document.querySelectorAll(".sidebar-link");
+    const sections = document.querySelectorAll(".dashboard-section");
+
+    function showSection(id) {
+        sections.forEach(sec => sec.classList.remove("active-section"));
+        const target = document.getElementById(id);
+        if (target) {
+            target.classList.add("active-section");
+        }
+
+        links.forEach(link => {
+            link.classList.remove("active");
+            if(link.getAttribute("href") === "#" + id) {
+                link.classList.add("active");
+            }
+        });
+    }
+
+    links.forEach(link => {
+        link.addEventListener("click", e => {
+            const hash = link.getAttribute("href");
+            if (hash && hash.startsWith("#")) {
+                e.preventDefault();
+                const sectionId = hash.substring(1);
+                showSection(sectionId);
+                window.location.hash = hash;
+            }
+        });
+    });
+
+    const currentHash = window.location.hash.substring(1);
+    showSection(currentHash || "dashboard");
+});
+
+function toggleEditMode(showEdit) {
+    document.getElementById('view-mode').classList.toggle('d-none', showEdit);
+    document.getElementById('edit-mode').classList.toggle('d-none', !showEdit);
+}
+
+function confirmDeleteProfile() {
+    if (confirm("Delete your profile? This will withdraw your job applications.")) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '/candidate/delete-profile';
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+function searchMentors() {
+    const searchTerm = document.getElementById('mentor-search').value.toLowerCase();
+    const expertiseFilter = document.getElementById('expertise-filter').value;
+    const modeFilter = document.getElementById('mode-filter').value;
+    
+    const mentorCards = document.querySelectorAll('.mentor-card');
+    
+    mentorCards.forEach(card => {
+        const name = card.getAttribute('data-name');
+        const expertise = card.getAttribute('data-expertise');
+        const company = card.getAttribute('data-company');
+        const mode = card.getAttribute('data-mode');
+        
+        const matchesSearch = searchTerm === '' || 
+                            name.includes(searchTerm) || 
+                            expertise.includes(searchTerm) || 
+                            company.includes(searchTerm);
+        
+        const matchesExpertise = expertiseFilter === '' || expertise.includes(expertiseFilter.toLowerCase());
+        const matchesMode = modeFilter === '' || mode === modeFilter;
+        
+        if (matchesSearch && matchesExpertise && matchesMode) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+// Allow search on Enter key
+(function() {
+    const searchInput = document.getElementById('mentor-search');
+    if (searchInput) {
+        searchInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                searchMentors();
+            }
+        });
+    }
+})();
+
+// Location Autocomplete Functionality
+const indianCities = [
+    'Bengaluru, Karnataka, India',
+    'Mumbai, Maharashtra, India',
+    'Delhi, Delhi, India',
+    'Hyderabad, Telangana, India',
+    'Pune, Maharashtra, India',
+    'Chennai, Tamil Nadu, India',
+    'Kolkata, West Bengal, India',
+    'Ahmedabad, Gujarat, India',
+    'Jaipur, Rajasthan, India',
+    'Lucknow, Uttar Pradesh, India',
+    'Chandigarh, Chandigarh, India',
+    'Indore, Madhya Pradesh, India',
+    'Bhopal, Madhya Pradesh, India',
+    'Visakhapatnam, Andhra Pradesh, India',
+    'Coimbatore, Tamil Nadu, India',
+    'Cochin, Kerala, India',
+    'Gurgaon, Haryana, India',
+    'Noida, Uttar Pradesh, India',
+    'Vadodara, Gujarat, India',
+    'Surat, Gujarat, India',
+    'Kochi, Kerala, India',
+    'Nagpur, Maharashtra, India',
+    'Srinagar, Jammu and Kashmir, India',
+    'Thiruvananthapuram, Kerala, India'
+];
+
+document.addEventListener('DOMContentLoaded', function() {
+    const locationInput = document.getElementById('current_location_input');
+    const suggestionsContainer = document.getElementById('location-suggestions');
+    
+    if (!locationInput) return;
+    
+    locationInput.addEventListener('input', function() {
+        const value = this.value.trim().toLowerCase();
+        
+        if (value.length === 0) {
+            suggestionsContainer.style.display = 'none';
+            return;
+        }
+        
+        // Filter cities that match the input
+        const matches = indianCities.filter(city => 
+            city.toLowerCase().includes(value)
+        );
+        
+        if (matches.length === 0) {
+            suggestionsContainer.style.display = 'none';
+            return;
+        }
+        
+        // Display suggestions
+        suggestionsContainer.innerHTML = '';
+        matches.forEach(city => {
+            const div = document.createElement('div');
+            div.className = 'p-2 border-bottom cursor-pointer';
+            div.style.cursor = 'pointer';
+            div.style.padding = '10px';
+            div.innerHTML = `<i class="bi bi-geo-alt me-2 text-primary"></i>${city}`;
+            
+            div.addEventListener('click', function() {
+                locationInput.value = city;
+                suggestionsContainer.style.display = 'none';
+            });
+            
+            div.addEventListener('mouseover', function() {
+                this.style.backgroundColor = '#f0f0f0';
+            });
+            
+            div.addEventListener('mouseout', function() {
+                this.style.backgroundColor = 'white';
+            });
+            
+            suggestionsContainer.appendChild(div);
+        });
+        
+        suggestionsContainer.style.display = 'block';
+    });
+    
+    // Close suggestions when clicking outside
+    document.addEventListener('click', function(event) {
+        if (event.target !== locationInput) {
+            suggestionsContainer.style.display = 'none';
+        }
+    });
+});
+
+// Show Profile Creation Options Modal on page load if no profile exists
+document.addEventListener('DOMContentLoaded', function() {
+    {% if not profile %}
+    const profileOptionsModal = new bootstrap.Modal(document.getElementById('profileCreationOptionsModal'));
+    profileOptionsModal.show();
+    {% endif %}
+});
+
+// Fill Manually Function
+function fillManually() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('profileCreationOptionsModal'));
+    modal.hide();
+    toggleEditMode(true);
+    showSection('profile');
+}
+
+// Handle Resume Upload and Auto-Fill
+async function handleResumeUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    if (file.type !== 'application/pdf') {
+        alert('Please upload a PDF file');
+        return;
+    }
+    
+    // Show progress
+    document.getElementById('upload-progress').style.display = 'block';
+    
+    const formData = new FormData();
+    formData.append('resume', file);
+    
+    try {
+        const response = await fetch('/api/parse-resume', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.message || 'Failed to parse resume');
+        }
+        
+        if (data.success) {
+            console.log('Resume parsed successfully:', data.data);
+            
+            // Hide modal and progress
+            document.getElementById('upload-progress').style.display = 'none';
+            const modal = bootstrap.Modal.getInstance(document.getElementById('profileCreationOptionsModal'));
+            modal.hide();
+            
+            // Show edit form and populate with data
+            toggleEditMode(true);
+            showSection('profile');
+            populateFormWithResumeData(data.data);
+            
+            // Show success message
+            showFlashMessage('Resume parsed successfully! Please review and edit the information.', 'success');
+        } else {
+            throw new Error(data.message || 'Failed to parse resume');
+        }
+    } catch (error) {
+        document.getElementById('upload-progress').style.display = 'none';
+        
+        // Check if it's an image-based PDF issue
+        if (error.message.includes('image-based') || error.message.includes('scanned')) {
+            alert(error.message + '\n\nYou can:\n1. Click "Fill Manually" to enter details yourself\n2. Convert your PDF to a text-based format\n3. Try a different resume file');
+        } else {
+            alert('Error parsing resume: ' + error.message);
+        }
+        console.error('Error:', error);
+    }
+}
+
+// Populate form with resume data
+function populateFormWithResumeData(data) {
+    console.log('Populating form with data:', data);
+    
+    // Basic Information
+    if (data.first_name) document.querySelector('input[name="firstName"]').value = data.first_name;
+    if (data.last_name) document.querySelector('input[name="lastName"]').value = data.last_name;
+    if (data.headline) document.querySelector('input[name="headline"]').value = data.headline;
+    if (data.bio) document.querySelector('textarea[name="about"]').value = data.bio;
+    
+    // Contact & Location
+    if (data.email) document.querySelector('input[name="email"]').value = data.email;
+    if (data.phone) document.querySelector('input[name="phone"]').value = data.phone;
+    if (data.location) document.querySelector('input[name="current_location"]').value = data.location;
+    
+    // Skills
+    if (data.primary_skills) document.querySelector('input[name="primary_skills"]').value = data.primary_skills;
+    if (data.secondary_skills) document.querySelector('input[name="secondary_skills"]').value = data.secondary_skills;
+    
+    // Education
+    if (data.degree) document.querySelector('input[name="degree"]').value = data.degree;
+    if (data.college_university) document.querySelector('input[name="college_university"]').value = data.college_university;
+    if (data.specialization) document.querySelector('input[name="specialization"]').value = data.specialization;
+    
+    // Experience
+    if (data.work_experience) document.querySelector('textarea[name="work_experience"]').value = data.work_experience;
+    if (data.projects) document.querySelector('textarea[name="projects"]').value = data.projects;
+    
+    // Links
+    if (data.github_url) document.querySelector('input[name="github_url"]').value = data.github_url;
+    if (data.linkedin_url) document.querySelector('input[name="linkedin_url"]').value = data.linkedin_url;
+}
+
+// Show flash message
+function showFlashMessage(message, category) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${category} alert-dismissible fade show shadow-sm`;
+    alertDiv.innerHTML = `
+        <i class="bi bi-check-circle-fill me-2"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.querySelector('.container.mt-3').appendChild(alertDiv);
+    
+    setTimeout(() => {
+        alertDiv.remove();
+    }, 5000);
+}
+</script>
+{% endblock %}
