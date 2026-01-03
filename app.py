@@ -82,15 +82,15 @@ def login():
         db = get_connection()
         cursor = db.cursor(dictionary=True)
 
-        cursor.execute(
-            f"SELECT * FROM {table_map[role]} WHERE email=%s",
-            (email,)
-        )
-        user = cursor.fetchone()
-
-        cursor.close()
-        db.close()
-
+        cursor.execute("""
+            SELECT mr.id, mr.mentor_id, mr.status, mr.request_message, mr.mentor_feedback, mr.created_at,
+                   m.name AS mentor_name, mp.expertise, mp.company
+            FROM mentorship_requests mr
+            JOIN mentors m ON mr.mentor_id = m.id
+            LEFT JOIN mentor_profiles mp ON m.id = mp.mentor_id
+            WHERE mr.candidate_id = %s
+            ORDER BY mr.created_at DESC
+        "", (candidate_id,))
         if user and check_password_hash(user["password"], password):
             session["user_id"] = user["id"]
             session["role"] = role
@@ -137,17 +137,13 @@ def forgot_password():
                     "HireHub Password Reset",
                     recipients=[email]
                 )
-                msg.body = f"""
-                    Hi,
-
-                    Click the link below to reset your password:
-
-                    {reset_link}
-
-                    This link expires in 10 minutes.
-
-                    If you didn't request this, ignore this email.
-                """
+                msg.body = (
+                    "Hi,\n\n"
+                    "Click the link below to reset your password:\n\n"
+                    f"{reset_link}\n\n"
+                    "This link expires in 10 minutes.\n\n"
+                    "If you didn't request this, ignore this email."
+                )
                 mail.send(msg)
             return "If the email exists, a reset link has been sent."
     return render_template("forgot_password.html")
@@ -422,6 +418,20 @@ def candidate_dashboard():
     """, (candidate_id,))
     mentorship_requests = cursor.fetchall()
 
+    # Fetch meetings scheduled for this candidate keyed by mentor
+    cursor.execute(
+        """
+        SELECT mm.mentor_id, mm.mode, mm.meeting_date, mm.meeting_time, mm.meeting_link, mm.notes,
+               m.name AS mentor_name
+        FROM mentor_meetings mm
+        JOIN mentors m ON mm.mentor_id = m.id
+        WHERE mm.candidate_id = %s
+        """,
+        (candidate_id,)
+    )
+    meetings = cursor.fetchall()
+    meeting_map = {row['mentor_id']: row for row in meetings}
+
     # Count applied jobs (placeholder for now)
     applied_count = 0
 
@@ -435,7 +445,8 @@ def candidate_dashboard():
         profile=profile,
         available_mentors=available_mentors,
         applied_count=applied_count,
-        mentorship_requests=mentorship_requests
+        mentorship_requests=mentorship_requests,
+        meeting_map=meeting_map
     )
 @app.route('/api/profile')
 def get_profile_api():
@@ -1286,7 +1297,14 @@ def mentor_dashboard():
     """, (mentor_id,))
     pending_requests = cursor.fetchall()
 
-    cursor.execute("SELECT mr.id, mr.request_message, u.name AS candidate_name FROM mentorship_requests mr JOIN candidates u ON mr.candidate_id = u.id WHERE mr.mentor_id = %s AND mr.status = 'Accepted'", (mentor_id,))
+    cursor.execute("""
+        SELECT mr.id, mr.candidate_id, mr.request_message, mr.created_at AS started_at,
+               u.name AS candidate_name, u.email AS candidate_email
+        FROM mentorship_requests mr
+        JOIN candidates u ON mr.candidate_id = u.id
+        WHERE mr.mentor_id = %s AND mr.status = 'Accepted'
+        ORDER BY mr.created_at DESC
+    """, (mentor_id,))
     active_sessions = cursor.fetchall()
 
     # load recent notifications for mentor
@@ -1618,6 +1636,92 @@ def give_feedback(request_id):
     cursor.close()
     db.close()
     return redirect('/mentor-dashboard')
+
+@app.route('/api/mentor/meetings', methods=['GET', 'POST'])
+def mentor_meetings_api():
+    if session.get('role') != 'mentor':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    mentor_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    try:
+        if request.method == 'POST':
+            data = request.get_json() or {}
+            candidate_id = data.get('candidate_id')
+            mode = data.get('mode')
+            meeting_date = data.get('date')
+            meeting_time = data.get('time')
+            meeting_link = data.get('link')
+            notes = data.get('notes')
+            if not candidate_id:
+                return jsonify({'success': False, 'message': 'candidate_id required'}), 400
+            cursor.execute(
+                """
+                INSERT INTO mentor_meetings (mentor_id, candidate_id, mode, meeting_date, meeting_time, meeting_link, notes)
+                VALUES (%s,%s,%s,%s,%s,%s,%s)
+                ON DUPLICATE KEY UPDATE
+                    mode=VALUES(mode), meeting_date=VALUES(meeting_date), meeting_time=VALUES(meeting_time),
+                    meeting_link=VALUES(meeting_link), notes=VALUES(notes)
+                """,
+                (mentor_id, candidate_id, mode, meeting_date, meeting_time, meeting_link, notes)
+            )
+            db.commit()
+            cursor.execute("SELECT name FROM candidates WHERE id=%s", (candidate_id,))
+            row = cursor.fetchone()
+            return jsonify({'success': True, 'meeting': {
+                'candidate_id': candidate_id,
+                'candidate_name': row['name'] if row else None,
+                'mode': mode,
+                'meeting_date': meeting_date,
+                'meeting_time': meeting_time,
+                'meeting_link': meeting_link,
+                'notes': notes
+            }})
+
+        cursor.execute(
+            """
+            SELECT mm.*, c.name AS candidate_name
+            FROM mentor_meetings mm
+            JOIN candidates c ON mm.candidate_id = c.id
+            WHERE mm.mentor_id = %s
+            ORDER BY mm.meeting_date DESC, mm.meeting_time DESC
+            """,
+            (mentor_id,)
+        )
+        rows = cursor.fetchall()
+        return jsonify({'success': True, 'meetings': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        cursor.close()
+        db.close()
+
+@app.route('/api/candidate/meetings')
+def candidate_meetings_api():
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    cand_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            """
+            SELECT mm.*, m.name AS mentor_name, mp.company, mp.mode, mp.available_days, mp.time_slot
+            FROM mentor_meetings mm
+            JOIN mentors m ON mm.mentor_id = m.id
+            LEFT JOIN mentor_profiles mp ON m.id = mp.mentor_id
+            WHERE mm.candidate_id = %s
+            ORDER BY mm.meeting_date DESC, mm.meeting_time DESC
+            """,
+            (cand_id,)
+        )
+        rows = cursor.fetchall()
+        return jsonify({'success': True, 'meetings': rows})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+    finally:
+        cursor.close()
+        db.close()
 @app.route('/mentor/delete-profile', methods=['POST'])
 def delete_mentor_profile():
     if session.get('role') != 'mentor':
@@ -1667,15 +1771,19 @@ def admin_dashboard():
         SELECT id, name, email, 'Recruiter' as role FROM recruiters
         UNION
         SELECT id, name, email, 'Mentor' as role FROM mentors
-        ORDER BY name ASC
+        ORDER BY id ASC
     """)
     all_users = cursor.fetchall()
 
-    # attach verification_status for mentors when available
+    # attach verification_status for mentors and recruiters when available
     for u in all_users:
         try:
             if u.get('role') == 'Mentor':
                 cursor.execute("SELECT verification_status FROM mentor_profiles WHERE mentor_id=%s", (u.get('id'),))
+                r = cursor.fetchone()
+                u['verification_status'] = r['verification_status'] if r and 'verification_status' in r else None
+            elif u.get('role') == 'Recruiter':
+                cursor.execute("SELECT verification_status FROM recruiter_profiles WHERE recruiter_id=%s", (u.get('id'),))
                 r = cursor.fetchone()
                 u['verification_status'] = r['verification_status'] if r and 'verification_status' in r else None
             else:
@@ -2411,20 +2519,20 @@ def update_application(app_id, action):
     
     try:
         # Verify the application belongs to a job posted by this recruiter
-        cursor.execute("""
-            SELECT a.id FROM applications a
-            JOIN jobs j ON a.job_id = j.id
-            WHERE a.id = %s AND j.recruiter_id = %s
-        """, (app_id, session.get('user_id')))
+        cursor.execute(
+            "SELECT a.id FROM applications a JOIN jobs j ON a.job_id = j.id WHERE a.id = %s AND j.recruiter_id = %s",
+            (app_id, session.get('user_id'))
+        )
         
         if not cursor.fetchone():
             flash("Application not found", "danger")
             return redirect('/applications')
         
         # Update application status
-        cursor.execute("""
-            UPDATE applications SET status = %s WHERE id = %s
-        """, (new_status, app_id))
+        cursor.execute(
+            "UPDATE applications SET status = %s WHERE id = %s",
+            (new_status, app_id)
+        )
         
         db.commit()
         flash(f"Application status updated to {new_status}", "success")

@@ -522,12 +522,14 @@
                                         <th>Mentor</th>
                                         <th>Company</th>
                                         <th>Status</th>
+                                        <th>Meeting</th>
                                         <th>Requested On</th>
                                         <th>Details</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for req in mentorship_requests %}
+                                    {% set meeting = meeting_map.get(req.mentor_id) if meeting_map else None %}
                                     <tr>
                                         <td><strong>{{ req.mentor_name }}</strong></td>
                                         <td>{{ req.company if req.company else 'N/A' }}</td>
@@ -540,6 +542,13 @@
                                                 <span class="badge bg-danger">Rejected</span>
                                             {% elif req.status == 'Completed' %}
                                                 <span class="badge bg-info">Completed</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if meeting %}
+                                                <span class="badge bg-success">Scheduled</span>
+                                            {% else %}
+                                                <span class="badge bg-light text-muted">Not set</span>
                                             {% endif %}
                                         </td>
                                         <td><small>{{ req.created_at.strftime('%d %b %Y') if req.created_at else 'N/A' }}</small></td>
@@ -578,6 +587,21 @@
                                                         <hr>
                                                         <p><strong>Mentor Feedback:</strong></p>
                                                         <p class="bg-success bg-opacity-10 p-2 rounded border border-success">{{ req.mentor_feedback }}</p>
+                                                    {% endif %}
+                                                    {% if meeting %}
+                                                        <hr>
+                                                        <p><strong>Scheduled Meeting</strong></p>
+                                                        <div class="bg-light p-3 rounded border">
+                                                            <p class="mb-1"><i class="bi bi-laptop me-1"></i>{{ meeting.mode }}</p>
+                                                            <p class="mb-1"><i class="bi bi-calendar-event me-1"></i>{{ meeting.meeting_date }}</p>
+                                                            <p class="mb-1"><i class="bi bi-clock me-1"></i>{{ meeting.meeting_time }}</p>
+                                                            {% if meeting.meeting_link %}
+                                                                <p class="mb-1"><i class="bi bi-link-45deg me-1"></i><a href="{{ meeting.meeting_link }}" target="_blank">Join Link</a></p>
+                                                            {% endif %}
+                                                            {% if meeting.notes %}
+                                                                <p class="mb-0 text-muted"><small>{{ meeting.notes }}</small></p>
+                                                            {% endif %}
+                                                        </div>
                                                     {% endif %}
                                                 </div>
                                                 <div class="modal-footer">
@@ -659,30 +683,32 @@
                                             </div>
                                             <div class="flex-grow-1 ms-3">
                                                 <h5 class="mb-1">{{ mentor.name }}</h5>
-                                                <p class="text-muted mb-1 small">{{ mentor.designation }} at {{ mentor.company }}</p>
-                                                <span class="badge bg-primary">{{ mentor.expertise }}</span>
+                                                <p class="text-muted mb-2 small">{{ mentor.designation }} at {{ mentor.company }}</p>
+                                                <span class="badge bg-primary me-2">{{ mentor.expertise }}</span>
+                                                <span class="badge bg-info text-dark"><i class="bi bi-laptop"></i> {{ mentor.mode }}</span>
+                                                <span class="badge bg-warning text-dark"><i class="bi bi-calendar3"></i> {{ mentor.available_days }}</span>
+                                                <span class="badge bg-success"><i class="bi bi-clock"></i> {{ mentor.time_slot }}</span>
                                             </div>
                                         </div>
                                         
                                         <p class="text-muted small mb-2">{{ mentor.bio[:100] }}{% if mentor.bio|length > 100 %}...{% endif %}</p>
                                         
-                                        <div class="mb-2">
+                                        <div class="mb-3">
                                             <small class="text-muted"><i class="bi bi-bookmark me-1"></i>Mentoring:</small>
                                             <small class="d-block">{{ mentor.mentoring_areas[:80] }}{% if mentor.mentoring_areas|length > 80 %}...{% endif %}</small>
                                         </div>
                                         
-                                        <div class="row text-center border-top pt-2 mt-2">
-                                            <div class="col-4">
-                                                <small class="text-muted d-block">Experience</small>
-                                                <strong>{{ mentor.experience }}y</strong>
-                                            </div>
-                                            <div class="col-4">
-                                                <small class="text-muted d-block">Mode</small>
-                                                <strong>{{ mentor.mode }}</strong>
-                                            </div>
-                                            <div class="col-4">
-                                                <small class="text-muted d-block">Days</small>
-                                                <strong>{{ mentor.available_days }}</strong>
+                                        <!-- Experience Section -->
+                                        <div class="bg-light p-2 rounded mb-3 border-start border-info border-3">
+                                            <div class="row">
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block"><i class="bi bi-briefcase"></i> Experience</small>
+                                                    <strong>{{ mentor.experience }} years</strong>
+                                                </div>
+                                                <div class="col-6">
+                                                    <small class="text-muted d-block"><i class="bi bi-people"></i> Max Mentees</small>
+                                                    <strong>{{ mentor.max_candidates }}</strong>
+                                                </div>
                                             </div>
                                         </div>
                                         
@@ -1177,24 +1203,27 @@
 </style>
 
 <script>
+// Make showSection globally accessible
+function showSection(id) {
+    const sections = document.querySelectorAll(".dashboard-section");
+    const links = document.querySelectorAll(".sidebar-link");
+    
+    sections.forEach(sec => sec.classList.remove("active-section"));
+    const target = document.getElementById(id);
+    if (target) {
+        target.classList.add("active-section");
+    }
+
+    links.forEach(link => {
+        link.classList.remove("active");
+        if(link.getAttribute("href") === "#" + id) {
+            link.classList.add("active");
+        }
+    });
+}
+
 document.addEventListener("DOMContentLoaded", () => {
     const links = document.querySelectorAll(".sidebar-link");
-    const sections = document.querySelectorAll(".dashboard-section");
-
-    function showSection(id) {
-        sections.forEach(sec => sec.classList.remove("active-section"));
-        const target = document.getElementById(id);
-        if (target) {
-            target.classList.add("active-section");
-        }
-
-        links.forEach(link => {
-            link.classList.remove("active");
-            if(link.getAttribute("href") === "#" + id) {
-                link.classList.add("active");
-            }
-        });
-    }
 
     links.forEach(link => {
         link.addEventListener("click", e => {
@@ -1411,7 +1440,11 @@ async function handleResumeUpload(event) {
             // Show edit form and populate with data
             toggleEditMode(true);
             showSection('profile');
-            populateFormWithResumeData(data.data);
+            
+            // Wait for DOM to update before populating
+            setTimeout(() => {
+                populateFormWithResumeData(data.data);
+            }, 100);
             
             // Show success message
             showFlashMessage('Resume parsed successfully! Please review and edit the information.', 'success');
@@ -1435,33 +1468,50 @@ async function handleResumeUpload(event) {
 function populateFormWithResumeData(data) {
     console.log('Populating form with data:', data);
     
+    // Helper function to safely set field value
+    const setFieldValue = (selector, value) => {
+        try {
+            const field = document.querySelector(selector);
+            if (field && value) {
+                field.value = value;
+                console.log(`Set ${selector} to: ${value}`);
+            } else if (!field) {
+                console.warn(`Field not found: ${selector}`);
+            }
+        } catch (error) {
+            console.error(`Error setting ${selector}:`, error);
+        }
+    };
+    
     // Basic Information
-    if (data.first_name) document.querySelector('input[name="firstName"]').value = data.first_name;
-    if (data.last_name) document.querySelector('input[name="lastName"]').value = data.last_name;
-    if (data.headline) document.querySelector('input[name="headline"]').value = data.headline;
-    if (data.bio) document.querySelector('textarea[name="about"]').value = data.bio;
+    setFieldValue('input[name="firstName"]', data.first_name);
+    setFieldValue('input[name="lastName"]', data.last_name);
+    setFieldValue('input[name="headline"]', data.headline);
+    setFieldValue('textarea[name="about"]', data.bio);
     
     // Contact & Location
-    if (data.email) document.querySelector('input[name="email"]').value = data.email;
-    if (data.phone) document.querySelector('input[name="phone"]').value = data.phone;
-    if (data.location) document.querySelector('input[name="current_location"]').value = data.location;
+    setFieldValue('input[name="email"]', data.email);
+    setFieldValue('input[name="phone"]', data.phone);
+    setFieldValue('input[name="current_location"]', data.location);
     
     // Skills
-    if (data.primary_skills) document.querySelector('input[name="primary_skills"]').value = data.primary_skills;
-    if (data.secondary_skills) document.querySelector('input[name="secondary_skills"]').value = data.secondary_skills;
+    setFieldValue('input[name="primary_skills"]', data.primary_skills);
+    setFieldValue('input[name="secondary_skills"]', data.secondary_skills);
     
     // Education
-    if (data.degree) document.querySelector('input[name="degree"]').value = data.degree;
-    if (data.college_university) document.querySelector('input[name="college_university"]').value = data.college_university;
-    if (data.specialization) document.querySelector('input[name="specialization"]').value = data.specialization;
+    setFieldValue('input[name="degree"]', data.degree);
+    setFieldValue('input[name="college_university"]', data.college_university);
+    setFieldValue('input[name="specialization"]', data.specialization);
     
     // Experience
-    if (data.work_experience) document.querySelector('textarea[name="work_experience"]').value = data.work_experience;
-    if (data.projects) document.querySelector('textarea[name="projects"]').value = data.projects;
+    setFieldValue('textarea[name="work_experience"]', data.work_experience);
+    setFieldValue('textarea[name="projects"]', data.projects);
     
     // Links
-    if (data.github_url) document.querySelector('input[name="github_url"]').value = data.github_url;
-    if (data.linkedin_url) document.querySelector('input[name="linkedin_url"]').value = data.linkedin_url;
+    setFieldValue('input[name="github_url"]', data.github_url);
+    setFieldValue('input[name="linkedin_url"]', data.linkedin_url);
+    
+    console.log('Form population completed');
 }
 
 // Show flash message

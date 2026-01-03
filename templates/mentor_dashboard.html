@@ -92,6 +92,24 @@
                     </div>
                 </div>
             </div>
+                    <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
+                        <div class="modal-dialog modal-dialog-centered modal-md">
+                            <div class="modal-content">
+                                <div class="modal-header bg-primary text-white">
+                                    <h5 class="modal-title" id="chatModalLabel">Live Chat</h5>
+                                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <ul class="list-group mb-3" id="chatLog" style="max-height: 280px; overflow-y: auto;"></ul>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="chatInput" placeholder="Type a message...">
+                                        <button class="btn btn-primary" type="button" id="chatSend">Send</button>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">Chat is scoped per mentee. Server-side chat handling is needed for real-time sync.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
             <div class="dashboard-section active-section" id="dashboard">
                 <div class="row g-4">
@@ -413,18 +431,59 @@
             </div>
 
             <div class="card p-4 shadow-sm dashboard-section" id="mentees">
-                <h4 class="mb-3">Active Mentorship Sessions</h4>
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Active Mentorship Sessions</h4>
+                    <small class="text-muted">Chat and feedback with your accepted mentees</small>
+                </div>
+
                 {% if active_sessions %}
-                    {% for s in active_sessions %}
-                    <div class="border rounded p-3 mb-3 bg-light">
-                        <strong>{{ s.candidate_name }}</strong>
-                        <p class="mb-2 text-muted small">{{ s.request_message }}</p>
-                        <form method="POST" action="/mentor/give-feedback/{{ s.id }}">
-                            <textarea name="feedback" class="form-control mb-2 form-control-sm" placeholder="Provide mentorship feedback..." required></textarea>
-                            <button class="btn btn-sm btn-primary">Submit Feedback</button>
-                        </form>
-                    </div>
-                    {% endfor %}
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>#</th>
+                                <th>Candidate</th>
+                                <th>Email</th>
+                                <th>Request</th>
+                                <th>Started</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for s in active_sessions %}
+                            <tr>
+                                <td>{{ loop.index }}</td>
+                                <td>{{ s.candidate_name }}</td>
+                                <td><a href="mailto:{{ s.candidate_email }}">{{ s.candidate_email }}</a></td>
+                                <td class="text-muted small" style="max-width: 260px;">{{ s.request_message }}</td>
+                                <td class="text-muted small">{{ s.started_at.strftime('%Y-%m-%d %H:%M') if s.started_at }}</td>
+                                <td class="d-flex flex-wrap gap-2 align-items-center">
+                                    <button class="btn btn-sm btn-outline-primary chat-btn"
+                                        data-room="mentor_{{ user_id }}_cand_{{ s.candidate_id }}"
+                                        data-mentee="{{ s.candidate_name }}">
+                                        <i class="bi bi-chat-dots"></i> Chat
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-secondary schedule-btn"
+                                        data-room="mentor_{{ user_id }}_cand_{{ s.candidate_id }}"
+                                        data-mentee="{{ s.candidate_name }}">
+                                        <i class="bi bi-calendar-event"></i> Schedule
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-success feedback-btn"
+                                        data-request-id="{{ s.id }}">
+                                        <i class="bi bi-send"></i> Feedback
+                                    </button>
+                                    <span class="badge bg-info text-dark meeting-badge d-none"></span>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="alert alert-info small d-flex align-items-center gap-2 mt-3">
+                    <i class="bi bi-info-circle"></i>
+                    Chat is scoped per mentee. Messages stay within each room (mentor + that candidate).
+                </div>
                 {% else %}
                     <p class="text-muted">No active mentorship sessions</p>
                 {% endif %}
@@ -432,7 +491,18 @@
 
             <div class="card p-4 shadow-sm dashboard-section" id="schedule">
                 <h4 class="mb-3">My Schedule</h4>
-                <div class="alert alert-secondary">Your mentoring availability and upcoming sessions will appear here.</div>
+                <div id="scheduleContainer">
+                    <div class="alert alert-secondary">No scheduled meetings yet.</div>
+                </div>
+                
+                <div class="mt-4 alert alert-info">
+                    <strong>Profile Availability:</strong><br>
+                    <small>
+                        Mode: <strong>{{ profile.mode if profile else 'N/A' }}</strong><br>
+                        Days: <strong>{{ profile.available_days if profile else 'N/A' }}</strong><br>
+                        Time Slot: <strong>{{ profile.time_slot if profile else 'N/A' }}</strong>
+                    </small>
+                </div>
             </div>
 
             <div class="card p-4 shadow-sm dashboard-section" id="feedback">
@@ -451,6 +521,53 @@
                 {% endif %}
             </div>
 
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="scheduleModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-secondary text-white">
+                <h5 class="modal-title" id="scheduleModalLabel">Schedule Meeting</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Mode</label>
+                    <select class="form-select" id="meetingMode">
+                        <option value="Zoom Call">Zoom Call</option>
+                        <option value="Google Meet">Google Meet</option>
+                        <option value="Messaging">Messaging</option>
+                        <option value="Phone">Phone</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Date</label>
+                        <input type="date" class="form-control" id="meetingDate">
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">Time</label>
+                        <input type="time" class="form-control" id="meetingTime">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Meeting Link (Zoom/Meet)</label>
+                    <input type="url" class="form-control" id="meetingLink" placeholder="https://zoom.us/... or https://meet.google.com/...">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" rows="2" id="meetingNotes" placeholder="Agenda, prep notes, etc."></textarea>
+                </div>
+                <div class="alert alert-info small">
+                    Saved locally per mentee. Share the link/time via chat or email.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="saveMeeting">Save</button>
+            </div>
         </div>
     </div>
 </div>
@@ -514,33 +631,225 @@
     </div>
 </div>
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
-<<script>
-document.addEventListener('DOMContentLoaded', () => {
-  try {
-    const socket = io();
-    const userId = {{ user_id | tojson }};
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        const socket = io();
+        const userId = {{ user_id | tojson }};
+        const chatModal = document.getElementById('chatModal');
+        const chatTitle = document.getElementById('chatModalLabel');
+        const chatLog = document.getElementById('chatLog');
+        const chatInput = document.getElementById('chatInput');
+        const chatSendBtn = document.getElementById('chatSend');
+        const scheduleModal = document.getElementById('scheduleModal');
+        const scheduleTitle = document.getElementById('scheduleModalLabel');
+        const meetingMode = document.getElementById('meetingMode');
+        const meetingDate = document.getElementById('meetingDate');
+        const meetingTime = document.getElementById('meetingTime');
+        const meetingLink = document.getElementById('meetingLink');
+        const meetingNotes = document.getElementById('meetingNotes');
+        const saveMeetingBtn = document.getElementById('saveMeeting');
+        let currentRoom = null;
+        let currentPeer = '';
+        const localMessages = {}; // simple client-side log per room
+        let meetingCache = {}; // server-backed cache keyed by room
 
-    socket.on('connect', () => {
-      socket.emit('join', { role: 'mentor', id: userId });
-    });
+        socket.on('connect', () => {
+            socket.emit('join', { role: 'mentor', id: userId });
+        });
 
-    socket.on('mentor_notification', (data) => {
-      const msg = data.message || 'You have a new notification';
+        socket.on('mentor_notification', (data) => {
+            const msg = data.message || 'You have a new notification';
+            const container = document.querySelector('#notifications');
+            if (!container) return;
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-info py-2 shadow-sm';
+            alert.textContent = msg;
+            const cardBody = container.querySelector('.card-body') || container;
+            cardBody.prepend(alert);
+        });
 
-      const container = document.querySelector('#notifications');
+        const loadMeetings = async () => {
+            try {
+                const res = await fetch('/api/mentor/meetings');
+                const data = await res.json();
+                if (data.success && Array.isArray(data.meetings)) {
+                    meetingCache = {};
+                    data.meetings.forEach(m => {
+                        const room = `mentor_${userId}_cand_${m.candidate_id}`;
+                        meetingCache[room] = {
+                            mode: m.mode,
+                            date: m.meeting_date,
+                            time: m.meeting_time,
+                            link: m.meeting_link,
+                            notes: m.notes,
+                            mentee_name: m.candidate_name
+                        };
+                    });
+                    hydrateMeetingBadge();
+                    populateSchedule();
+                }
+            } catch (e) {
+                console.warn('Could not load meetings', e);
+            }
+        };
+
+        // Basic chat UI (front-end only unless server handles chat events)
+        const renderMessages = () => {
+            chatLog.innerHTML = '';
+            const msgs = localMessages[currentRoom] || [];
+            msgs.forEach(m => {
+                const li = document.createElement('li');
+                li.className = 'list-group-item py-1';
+                li.innerHTML = `<strong>${m.author}:</strong> ${m.text}`;
+                chatLog.appendChild(li);
+            });
+            chatLog.scrollTop = chatLog.scrollHeight;
+        };
+
+        const openChat = (room, peer) => {
+            currentRoom = room;
+            currentPeer = peer;
+            chatTitle.textContent = `Live Chat • ${peer}`;
+            if (!localMessages[currentRoom]) localMessages[currentRoom] = [];
+            renderMessages();
+            const modal = bootstrap.Modal.getOrCreateInstance(chatModal);
+            modal.show();
+        };
+
+        const hydrateMeetingBadge = () => {
+            document.querySelectorAll('.schedule-btn').forEach(btn => {
+                const room = btn.dataset.room;
+                const badge = btn.parentElement.querySelector('.meeting-badge');
+                const entry = meetingCache[room];
+                if (badge) {
+                    if (entry) {
+                        badge.classList.remove('d-none');
+                        badge.textContent = `${entry.date || ''} ${entry.time || ''} (${entry.mode || ''})`.trim();
+                    } else {
+                        badge.classList.add('d-none');
+                    }
+                }
+            });
+        };
+
+        const openSchedule = (room, peer) => {
+            currentRoom = room;
+            currentPeer = peer;
+            scheduleTitle.textContent = `Schedule • ${peer}`;
+            const entry = meetingCache[room] || {};
+            meetingMode.value = entry.mode || 'Zoom Call';
+            meetingDate.value = entry.date || '';
+            meetingTime.value = entry.time || '';
+            meetingLink.value = entry.link || '';
+            meetingNotes.value = entry.notes || '';
+            const modal = bootstrap.Modal.getOrCreateInstance(scheduleModal);
+            modal.show();
+        };
+
+        chatSendBtn?.addEventListener('click', () => {
+            const text = chatInput.value.trim();
+            if (!text || !currentRoom) return;
+            // Local echo; replace with socket emit if backend supports chat
+            localMessages[currentRoom].push({ author: 'You', text });
+            renderMessages();
+            chatInput.value = '';
+        });
+
+        saveMeetingBtn?.addEventListener('click', async () => {
+            if (!currentRoom) return;
+            const payload = {
+                candidate_id: currentRoom.split('_cand_')[1],
+                mode: meetingMode.value,
+                date: meetingDate.value,
+                time: meetingTime.value,
+                link: meetingLink.value,
+                notes: meetingNotes.value
+            };
+            try {
+                const res = await fetch('/api/mentor/meetings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (!data.success) throw new Error(data.message || 'Failed to save meeting');
+                // update cache and UI
+                meetingCache[currentRoom] = {
+                    mode: payload.mode,
+                    date: payload.date,
+                    time: payload.time,
+                    link: payload.link,
+                    notes: payload.notes,
+                    mentee_name: data.meeting.candidate_name || payload.candidate_id
+                };
+                hydrateMeetingBadge();
+                populateSchedule();
+                const modal = bootstrap.Modal.getOrCreateInstance(scheduleModal);
+                modal.hide();
+            } catch (e) {
+                alert('Could not save meeting: ' + e.message);
+            }
+        });
+
+        document.querySelectorAll('.chat-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const room = btn.dataset.room;
+                const mentee = btn.dataset.mentee || 'Mentee';
+                openChat(room, mentee);
+            });
+        });
+
+        document.querySelectorAll('.schedule-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const room = btn.dataset.room;
+                const mentee = btn.dataset.mentee || 'Mentee';
+                openSchedule(room, mentee);
+            });
+        });
+
+        await loadMeetings();
+        hydrateMeetingBadge();
+
+    // Populate the My Schedule section with scheduled meetings
+    const populateSchedule = () => {
+      const container = document.getElementById('scheduleContainer');
       if (!container) return;
+      
+            const meetings = Object.entries(meetingCache || {});
+      if (meetings.length === 0) {
+        container.innerHTML = '<div class="alert alert-secondary">No scheduled meetings yet.</div>';
+        return;
+      }
+      
+      let html = '<div class="table-responsive"><table class="table table-hover align-middle"><thead class="table-light"><tr><th>#</th><th>Mentee</th><th>Mode</th><th>Date & Time</th><th>Link</th><th>Notes</th></tr></thead><tbody>';
+      meetings.forEach((entry, idx) => {
+                const [room, meeting] = entry;
+                const menteeMatch = room.match(/_cand_(\d+)$/);
+                const menteeNum = idx + 1;
+                const menteeName = meeting.mentee_name || `Mentee ${menteeMatch ? menteeMatch[1] : ''}`;
+        const dateTime = meeting.date && meeting.time ? `${meeting.date} ${meeting.time}` : 'Not set';
+        const link = meeting.link ? `<a href="${meeting.link}" target="_blank" class="btn btn-sm btn-outline-primary">Join</a>` : 'N/A';
+        const notes = meeting.notes ? `<small>${meeting.notes.substring(0, 50)}${meeting.notes.length > 50 ? '...' : ''}</small>` : 'N/A';
+        
+        html += `<tr>
+          <td>${menteeNum}</td>
+                    <td><strong>${menteeName}</strong></td>
+          <td>${meeting.mode || 'N/A'}</td>
+          <td>${dateTime}</td>
+          <td>${link}</td>
+          <td>${notes}</td>
+        </tr>`;
+      });
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    };
+    
+    populateSchedule();
 
-      const alert = document.createElement('div');
-      alert.className = 'alert alert-info py-2 shadow-sm';
-      alert.textContent = msg;
-
-      const cardBody = container.querySelector('.card-body') || container;
-      cardBody.prepend(alert);
-    });
-
-  } catch (err) {
-    console.error(err);
-  }
+    } catch (err) {
+        console.error(err);
+    }
 });
 </script>
 <style>

@@ -91,6 +91,7 @@
                     <table class="table table-hover align-middle border" id="usersTable">
                         <thead class="table-light">
                             <tr>
+                                <th>ID</th>
                                 <th>Name</th>
                                 <th>Email</th>
                                 <th>Role</th>
@@ -102,6 +103,7 @@
                         <tbody>
                             {% for user in all_users %}
                             <tr data-role="{{ user.role }}" data-user-id="{{ user.id }}">
+                                <td><code>{{ user.id }}</code></td>
                                 <td>{{ user.name }}</td>
                                 <td>{{ user.email }}</td>
                                 <td><span class="badge bg-secondary">{{ user.role }}</span></td>
@@ -453,21 +455,191 @@ document.addEventListener("DOMContentLoaded", () => {
             const p = data.profile;
             let html = '';
             if (role.toLowerCase() === 'mentor') {
-                html = `<h5>${p.mentor_name} &nbsp;<small class="text-muted">(${p.mentor_email})</small></h5>`+
-                       `<p><strong>Expertise:</strong> ${p.expertise || ''}</p>`+
-                       `<p><strong>Company:</strong> ${p.company || ''}</p>`+
-                       `<p><strong>Bio:</strong><br>${p.bio || ''}</p>`+
-                       `<p><strong>Verification File:</strong> ${p.verification_file ? `<a href="/static/uploads/${p.verification_file}" target="_blank">View</a>` : 'N/A'}</p>`;
+                html = `
+                    <div class="row align-items-start mb-3">
+                        <div class="col-md-4 text-center">
+                            ${p.photo_file ? `<img src="/static/uploads/${p.photo_file}" alt="Photo" style="max-width: 150px; border-radius: 8px;">` : '<div class="text-muted small">No photo</div>'}
+                        </div>
+                        <div class="col-md-8">
+                            <h5>${p.mentor_name || 'N/A'} <small class="text-muted">(${p.mentor_email || 'N/A'})</small></h5>
+                            <div class="mt-1"><strong>Verification Status:</strong> <span class="badge ${p.verification_status === 'approved' ? 'bg-success' : p.verification_status === 'rejected' ? 'bg-danger' : 'bg-warning'}">${p.verification_status || 'N/A'}</span></div>
+                            <div class="mt-2">${p.verification_file ? `<a href="/static/uploads/${p.verification_file}" target="_blank" class="btn btn-sm btn-outline-primary">View Verification</a>` : ''}</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>Expertise:</strong><br>${p.expertise || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Mentoring Areas:</strong><br>${p.mentoring_areas || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Company:</strong><br>${p.company || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Designation:</strong><br>${p.designation || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Experience:</strong><br>${p.experience || 'N/A'} years
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Mode:</strong><br>${p.mode || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Session Duration:</strong><br>${p.session_duration || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Max Candidates:</strong><br>${p.max_candidates || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Available Days:</strong><br>${p.available_days || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Time Slot:</strong><br>${p.time_slot || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Communication:</strong><br>${p.communication || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>LinkedIn:</strong><br>${p.linkedin ? `<a href="${p.linkedin}" target="_blank">${p.linkedin}</a>` : 'N/A'}
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <strong>Bio:</strong><br>${p.bio || 'N/A'}
+                        </div>
+                    </div>
+                `;
             } else if (role.toLowerCase() === 'candidate') {
-                const u = p.user; const cp = p.candidate_profile || {};
-                html = `<h5>${u.name} &nbsp;<small class="text-muted">(${u.email})</small></h5>`+
-                       `<p><strong>Headline:</strong> ${cp.headline || ''}</p>`+
-                       `<p><strong>Skills:</strong> ${cp.skills || ''}</p>`;
+                const u = p.user; 
+                const cp = p.candidate_profile || {};
+                html = `
+                    <div class="row align-items-start mb-3">
+                        <div class="col-md-4 text-center">
+                            ${cp.photo_file ? `<img src="/static/uploads/${cp.photo_file}" alt="Photo" style="max-width: 150px; border-radius: 8px;">` : '<div class="text-muted small">No photo</div>'}
+                        </div>
+                        <div class="col-md-8">
+                            <h5>${u.name || 'N/A'} <small class="text-muted">(${u.email || 'N/A'})</small></h5>
+                            <div class="mt-1"><strong>Headline:</strong> ${cp.headline || 'N/A'}</div>
+                            <div class="mt-1"><strong>Phone:</strong> ${cp.phone || 'N/A'}</div>
+                            <div class="mt-2">${cp.resume_file ? `<a href="/static/uploads/${cp.resume_file}" target="_blank" class="btn btn-sm btn-outline-primary">View Resume</a>` : ''}</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>First Name:</strong><br>${cp.first_name || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Last Name:</strong><br>${cp.last_name || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Current Location:</strong><br>${cp.current_location || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Preferred Work Mode:</strong><br>${cp.preferred_work_mode || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Job Type Preference:</strong><br>${cp.job_type_preference || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Open to Relocation:</strong><br>${cp.open_to_relocation || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Notice Period:</strong><br>${cp.notice_period || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Primary Skills:</strong><br>${cp.primary_skills || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Secondary Skills:</strong><br>${cp.secondary_skills || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Degree:</strong><br>${cp.degree || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>College/University:</strong><br>${cp.college_university || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Specialization:</strong><br>${cp.specialization || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Graduation Year:</strong><br>${cp.graduation_year || 'N/A'}
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <strong>Bio:</strong><br>${cp.bio || 'N/A'}
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <strong>Work Experience:</strong><br>${cp.work_experience || 'N/A'}
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <strong>Projects:</strong><br>${cp.projects || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>LinkedIn:</strong><br>${cp.linkedin_url ? `<a href="${cp.linkedin_url}" target="_blank">${cp.linkedin_url}</a>` : 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>GitHub:</strong><br>${cp.github_url ? `<a href="${cp.github_url}" target="_blank">${cp.github_url}</a>` : 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Portfolio:</strong><br>${cp.portfolio_url ? `<a href="${cp.portfolio_url}" target="_blank">${cp.portfolio_url}</a>` : 'N/A'}
+                        </div>
+                    </div>
+                `;
             } else if (role.toLowerCase() === 'recruiter') {
-                const u = p.user; const rp = p.recruiter_profile || {};
-                html = `<h5>${u.name} &nbsp;<small class="text-muted">(${u.email})</small></h5>`+
-                       `<p><strong>Company:</strong> ${rp.company_name || ''}</p>`+
-                       `<p><strong>Website:</strong> ${rp.website || ''}</p>`;
+                const u = p.user; 
+                const rp = p.recruiter_profile || {};
+                html = `
+                    <div class="row align-items-start mb-3">
+                        <div class="col-md-4 text-center">
+                            ${rp.logo_file ? `<img src="/static/uploads/${rp.logo_file}" alt="Logo" style="max-width: 150px; border-radius: 8px;">` : '<div class="text-muted small">No logo</div>'}
+                        </div>
+                        <div class="col-md-8">
+                            <h5>${u.name || 'N/A'} <small class="text-muted">(${u.email || 'N/A'})</small></h5>
+                            <div class="mt-1"><strong>Company:</strong> ${rp.company_name || 'N/A'}</div>
+                            <div class="mt-1"><strong>Verification:</strong> <span class="badge ${rp.verification_status === 'approved' ? 'bg-success' : rp.verification_status === 'rejected' ? 'bg-danger' : 'bg-warning'}">${rp.verification_status || 'N/A'}</span></div>
+                            <div class="mt-2 d-flex gap-2 flex-wrap">
+                                ${rp.company_doc ? `<a href="/static/uploads/${rp.company_doc}" target="_blank" class="btn btn-sm btn-outline-primary">Company Doc</a>` : ''}
+                                ${rp.auth_doc ? `<a href="/static/uploads/${rp.auth_doc}" target="_blank" class="btn btn-sm btn-outline-primary">Authorization</a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <strong>Full Name:</strong><br>${rp.full_name || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Phone:</strong><br>${rp.phone || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Designation:</strong><br>${rp.designation || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>LinkedIn:</strong><br>${rp.linkedin ? `<a href="${rp.linkedin}" target="_blank">${rp.linkedin}</a>` : 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Company Type:</strong><br>${rp.company_type || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Company Size:</strong><br>${rp.company_size || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Industry:</strong><br>${rp.industry || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Website:</strong><br>${rp.website ? `<a href="${rp.website}" target="_blank">${rp.website}</a>` : 'N/A'}
+                        </div>
+                        <div class="col-md-12 mb-3">
+                            <strong>Address:</strong><br>${rp.address || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Roles:</strong><br>${rp.roles || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Experience Levels:</strong><br>${rp.experience_levels || 'N/A'}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <strong>Job Types:</strong><br>${rp.job_types || 'N/A'}
+                        </div>
+                    </div>
+                `;
             } else {
                 html = `<pre>${JSON.stringify(p, null, 2)}</pre>`;
             }

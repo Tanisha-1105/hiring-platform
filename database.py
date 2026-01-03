@@ -217,6 +217,21 @@ def create_tables():
         FOREIGN KEY (mentor_id) REFERENCES mentors(id)
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mentor_meetings (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        mentor_id VARCHAR(20) NOT NULL,
+        candidate_id VARCHAR(20) NOT NULL,
+        mode VARCHAR(50),
+        meeting_date DATE,
+        meeting_time TIME,
+        meeting_link VARCHAR(255),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_meeting_pair (mentor_id, candidate_id)
+    )
+    """)
     # Recruiter profiles: ensure verification_status exists for admin approvals
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS recruiter_profiles (
