@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-"""Test script to check profile skills in database"""
-
 from database import get_connection
 
 db = get_connection()
