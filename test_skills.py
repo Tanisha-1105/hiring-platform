@@ -1,5 +1,4 @@
 from database import get_connection
-
 db = get_connection()
 cursor = db.cursor(dictionary=True)
 
