@@ -5,7 +5,7 @@ from werkzeug.security import generate_password_hash
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",
-    "password": "Tanisha@1105",
+    "password": "Enter_your_password",
     "database": "hiring_platform",
 }
 
