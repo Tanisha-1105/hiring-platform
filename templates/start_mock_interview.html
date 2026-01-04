@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-lg-6 col-md-8">
+            <div class="card shadow-lg border-0">
+                <div class="card-body p-5">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-mic-fill text-primary" style="font-size: 3rem;"></i>
+                        <h2 class="mt-3 fw-bold">AI Mock Interview</h2>
+                        <p class="text-muted">Get interviewed by AI and receive instant feedback</p>
+                    </div>
+
+                    <form method="POST" action="/start-mock-interview">
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Interview Type</label>
+                            <select name="interview_type" class="form-select" required>
+                                <option value="technical">Technical Interview</option>
+                                <option value="behavioral">Behavioral Interview</option>
+                                <option value="hr">HR Round</option>
+                                <option value="mixed">Mixed (Technical + Behavioral)</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Position/Role</label>
+                            <input type="text" name="position_role" class="form-control" 
+                                   value="Software Engineer" required
+                                   placeholder="e.g., Software Engineer, Data Scientist">
+                            <small class="text-muted">Enter the role you're preparing for</small>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">Difficulty Level</label>
+                            <select name="difficulty_level" class="form-select" required>
+                                <option value="easy">Easy (Entry Level)</option>
+                                <option value="medium" selected>Medium (Mid Level)</option>
+                                <option value="hard">Hard (Senior Level)</option>
+                            </select>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            <strong>What to expect:</strong>
+                            <ul class="mb-0 mt-2">
+                                <li>10 AI-generated interview questions</li>
+                                <li>Type or speak your answers (voice recognition supported)</li>
+                                <li>Instant AI feedback after each answer</li>
+                                <li>Overall performance report at the end</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="bi bi-play-circle me-2"></i>Start Interview
+                            </button>
+                            <a href="/candidate-dashboard#ai-assessments" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

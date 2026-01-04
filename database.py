@@ -6,7 +6,7 @@ DB_CONFIG = {
     "host": "localhost",
     "user": "root",
     "password": "Tanisha@1105",
-    "database": "hiring_platform"
+    "database": "hiring_platform",
 }
 
 def get_connection():
@@ -336,6 +336,95 @@ def create_tables():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_tests (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        candidate_id VARCHAR(20) NOT NULL,
+        test_type VARCHAR(50) DEFAULT 'technical',
+        total_questions INT DEFAULT 25,
+        total_marks INT DEFAULT 50,
+        obtained_marks INT DEFAULT 0,
+        percentage DECIMAL(5,2) DEFAULT 0,
+        status ENUM('in_progress','completed','abandoned') DEFAULT 'in_progress',
+        skills_tested TEXT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (candidate_id) REFERENCES candidates(id)
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_test_questions (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        test_id INT NOT NULL,
+        question_number INT NOT NULL,
+        question_text TEXT NOT NULL,
+        option_a TEXT NOT NULL,
+        option_b TEXT NOT NULL,
+        option_c TEXT NOT NULL,
+        option_d TEXT NOT NULL,
+        correct_answer CHAR(1) NOT NULL,
+        candidate_answer CHAR(1),
+        marks INT DEFAULT 2,
+        is_correct BOOLEAN DEFAULT 0,
+        FOREIGN KEY (test_id) REFERENCES ai_tests(id) ON DELETE CASCADE
+    )
+    """)
+    
+    # AI Mock Interview Sessions
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_mock_interviews (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        candidate_id VARCHAR(20) NOT NULL,
+        interview_type VARCHAR(50) DEFAULT 'technical',
+        position_role VARCHAR(150),
+        difficulty_level VARCHAR(20) DEFAULT 'medium',
+        total_questions INT DEFAULT 10,
+        questions_answered INT DEFAULT 0,
+        overall_score DECIMAL(5,2) DEFAULT 0,
+        communication_score DECIMAL(5,2) DEFAULT 0,
+        technical_score DECIMAL(5,2) DEFAULT 0,
+        confidence_score DECIMAL(5,2) DEFAULT 0,
+        status ENUM('in_progress','completed','abandoned') DEFAULT 'in_progress',
+        ai_feedback TEXT,
+        started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP NULL,
+        FOREIGN KEY (candidate_id) REFERENCES candidates(id) ON DELETE CASCADE
+    )
+    """)
+    
+    # AI Mock Interview Questions and Answers
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS ai_interview_responses (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        interview_id INT NOT NULL,
+        question_number INT NOT NULL,
+        question_text TEXT NOT NULL,
+        candidate_answer TEXT,
+        answer_duration INT DEFAULT 0,
+        ai_evaluation TEXT,
+        score DECIMAL(5,2) DEFAULT 0,
+        feedback TEXT,
+        answered_at TIMESTAMP NULL,
+        FOREIGN KEY (interview_id) REFERENCES ai_mock_interviews(id) ON DELETE CASCADE
+    )
+    """)
+    
+    # Mentor-Candidate Chat Messages
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mentor_messages (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        mentorship_request_id INT NOT NULL,
+        sender_role ENUM('mentor', 'candidate') NOT NULL,
+        sender_id VARCHAR(20) NOT NULL,
+        message_text TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        is_read BOOLEAN DEFAULT 0,
+        FOREIGN KEY (mentorship_request_id) REFERENCES mentorship_requests(id) ON DELETE CASCADE
+    )
+    """)
+    
     # Default Admin
     admin_email = "admin@hirehub.com"
     admin_password = generate_password_hash("Admin@123")

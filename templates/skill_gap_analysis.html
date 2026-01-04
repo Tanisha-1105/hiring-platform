@@ -1,0 +1,315 @@
+{% extends 'base.html' %}
+
+{% block title %}Skill Gap Analysis{% endblock %}
+
+{% block content %}
+<div class="container my-5">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-chart-line me-2"></i>Skill Gap Analysis</h2>
+                <a href="{{ url_for('candidate_dashboard') }}#ai-assessments" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+
+            <!-- Test Overview -->
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">Test Summary</h5>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Score:</strong></p>
+                            <h3 class="text-primary">{{ test.obtained_marks }}/{{ test.total_marks }}</h3>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Percentage:</strong></p>
+                            <h3 class="{% if test.percentage >= 80 %}text-success{% elif test.percentage >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                                {{ test.percentage }}%
+                            </h3>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Completed:</strong></p>
+                            <p>{{ test.completed_at.strftime('%d %b %Y') if test.completed_at else 'N/A' }}</p>
+                        </div>
+                        <div class="col-md-3">
+                            <p class="mb-1"><strong>Status:</strong></p>
+                            <span class="badge bg-success">Completed</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Overall Performance -->
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-star me-2"></i>Overall Performance</h5>
+                </div>
+                <div class="card-body">
+                    {% if test.percentage >= 80 %}
+                        <div class="alert alert-success">
+                            <i class="fas fa-trophy me-2"></i>
+                            <strong>Excellent Performance!</strong> You demonstrated strong proficiency across most skills. Keep up the great work!
+                        </div>
+                    {% elif test.percentage >= 60 %}
+                        <div class="alert alert-warning">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Good Performance!</strong> You have a solid foundation, but there are areas where you can improve.
+                        </div>
+                    {% else %}
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Needs Improvement</strong> Focus on strengthening your skills in the identified weak areas below.
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Strong Skills -->
+            {% if strong_skills %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Your Strong Skills (80%+)</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for skill in strong_skills %}
+                        <div class="col-md-6 mb-3">
+                            <div class="border rounded p-3 h-100">
+                                <h6 class="text-success"><i class="fas fa-check-circle me-2"></i>{{ skill.skill_name }}</h6>
+                                <div class="progress mb-2" style="height: 25px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ skill.percentage }}%;" 
+                                         aria-valuenow="{{ skill.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                        {{ skill.percentage }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    <i class="fas fa-check me-1"></i>{{ skill.correct }} correct out of {{ skill.total }} questions
+                                </small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Skill Performance Breakdown -->
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Detailed Skill Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Skill</th>
+                                    <th>Questions</th>
+                                    <th>Correct</th>
+                                    <th>Wrong</th>
+                                    <th>Accuracy</th>
+                                    <th>Performance</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for skill, stats in skill_performance.items() %}
+                                <tr>
+                                    <td><strong>{{ skill }}</strong></td>
+                                    <td>{{ stats.total }}</td>
+                                    <td class="text-success">{{ stats.correct }}</td>
+                                    <td class="text-danger">{{ stats.wrong }}</td>
+                                    <td>
+                                        <div class="progress" style="height: 20px; min-width: 100px;">
+                                            <div class="progress-bar {% if stats.percentage >= 80 %}bg-success{% elif stats.percentage >= 60 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                 role="progressbar" 
+                                                 style="width: {{ stats.percentage }}%;" 
+                                                 aria-valuenow="{{ stats.percentage }}" 
+                                                 aria-valuemin="0" 
+                                                 aria-valuemax="100">
+                                                {{ stats.percentage }}%
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if stats.percentage >= 80 %}
+                                            <span class="badge bg-success">Excellent</span>
+                                        {% elif stats.percentage >= 60 %}
+                                            <span class="badge bg-warning">Good</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Needs Work</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Weak Skills & Recommendations -->
+            {% if weak_skills %}
+            <div class="card mb-4 border-danger">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-circle me-2"></i>Skills Requiring Improvement (Below 60%)</h5>
+                </div>
+                <div class="card-body">
+                    <p class="alert alert-info">
+                        <i class="fas fa-lightbulb me-2"></i>
+                        Focus on these skills to improve your overall performance. Below are personalized learning recommendations for each weak area.
+                    </p>
+                    
+                    {% for skill in weak_skills %}
+                    <div class="card mb-4">
+                        <div class="card-header bg-light">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">
+                                    <i class="fas fa-code me-2"></i>{{ skill.skill_name }}
+                                </h6>
+                                <span class="badge bg-danger">{{ skill.percentage }}% Accuracy</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <div class="progress mb-2" style="height: 30px;">
+                                        <div class="progress-bar bg-danger" role="progressbar" 
+                                             style="width: {{ skill.percentage }}%;" 
+                                             aria-valuenow="{{ skill.percentage }}" 
+                                             aria-valuemin="0" 
+                                             aria-valuemax="100">
+                                            {{ skill.correct }}/{{ skill.total }} Correct ({{ skill.percentage }}%)
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Performance by Difficulty -->
+                            <div class="row mb-3">
+                                <div class="col-md-4">
+                                    <small class="text-muted">Easy Questions:</small>
+                                    <div class="progress" style="height: 20px;">
+                                        {% set easy_pct = (skill.easy.correct / skill.easy.total * 100) if skill.easy.total > 0 else 0 %}
+                                        <div class="progress-bar bg-success" role="progressbar" style="width: {{ easy_pct }}%;">
+                                            {{ skill.easy.correct }}/{{ skill.easy.total }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">Medium Questions:</small>
+                                    <div class="progress" style="height: 20px;">
+                                        {% set med_pct = (skill.medium.correct / skill.medium.total * 100) if skill.medium.total > 0 else 0 %}
+                                        <div class="progress-bar bg-warning" role="progressbar" style="width: {{ med_pct }}%;">
+                                            {{ skill.medium.correct }}/{{ skill.medium.total }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <small class="text-muted">Hard Questions:</small>
+                                    <div class="progress" style="height: 20px;">
+                                        {% set hard_pct = (skill.hard.correct / skill.hard.total * 100) if skill.hard.total > 0 else 0 %}
+                                        <div class="progress-bar bg-danger" role="progressbar" style="width: {{ hard_pct }}%;">
+                                            {{ skill.hard.correct }}/{{ skill.hard.total }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recommended Learning Resources -->
+                            <h6 class="mt-4 mb-3"><i class="fas fa-graduation-cap me-2"></i>Recommended Learning Resources</h6>
+                            
+                            {% if recommendations.get(skill.skill_name) %}
+                            <div class="row">
+                                {% for resource in recommendations[skill.skill_name] %}
+                                <div class="col-md-6 mb-3">
+                                    <div class="card h-100 border-primary">
+                                        <div class="card-body">
+                                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                                <h6 class="card-title mb-0">
+                                                    {% if resource.type == 'Video' %}
+                                                        <i class="fab fa-youtube text-danger me-2"></i>
+                                                    {% elif resource.type == 'Course' %}
+                                                        <i class="fas fa-book me-2 text-primary"></i>
+                                                    {% elif resource.type == 'Tutorial' %}
+                                                        <i class="fas fa-file-alt me-2 text-info"></i>
+                                                    {% else %}
+                                                        <i class="fas fa-external-link-alt me-2"></i>
+                                                    {% endif %}
+                                                    {{ resource.title }}
+                                                </h6>
+                                                <span class="badge bg-primary">{{ resource.type }}</span>
+                                            </div>
+                                            <p class="card-text mb-2">
+                                                <small class="text-muted">
+                                                    <i class="fas fa-globe me-1"></i>{{ resource.platform }}
+                                                </small>
+                                            </p>
+                                            <a href="{{ resource.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-external-link-alt me-1"></i>View Resource
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="text-muted">Search for "{{ skill.skill_name }}" courses on popular learning platforms.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% else %}
+            <div class="alert alert-success">
+                <i class="fas fa-thumbs-up me-2"></i>
+                <strong>Great Job!</strong> You don't have any weak skills (below 60%). Keep practicing to maintain your proficiency!
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="card">
+                <div class="card-body text-center">
+                    <h5 class="mb-3">What's Next?</h5>
+                    <div class="d-flex justify-content-center gap-3 flex-wrap">
+                        <a href="{{ url_for('view_test_details', test_id=test.id) }}" class="btn btn-info">
+                            <i class="fas fa-list me-2"></i>View All Questions
+                        </a>
+                        <a href="{{ url_for('candidate_dashboard') }}#jobs" class="btn btn-primary">
+                            <i class="fas fa-briefcase me-2"></i>Browse Jobs
+                        </a>
+                        <a href="{{ url_for('candidate_dashboard') }}#ai-assessments" class="btn btn-success">
+                            <i class="fas fa-redo me-2"></i>Take Another Test
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .progress {
+        border-radius: 10px;
+    }
+    
+    .progress-bar {
+        font-weight: bold;
+    }
+    
+    .card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 10px;
+    }
+    
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+    
+    .gap-3 {
+        gap: 1rem;
+    }
+</style>
+{% endblock %}

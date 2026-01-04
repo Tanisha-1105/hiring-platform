@@ -13,6 +13,7 @@
                         <tr>
                             <th class="ps-4 py-3">Candidate</th>
                             <th class="py-3">Job Role</th>
+                            <th class="py-3">AI Test Score</th>
                             <th class="py-3">Resume</th>
                             <th class="pe-4 py-3 text-end">Next Steps</th>
                         </tr>
@@ -25,6 +26,23 @@
                                 <div class="small text-muted">{{ interview.candidate_email }}</div>
                             </td>
                             <td>{{ interview.job_title }}</td>
+                            <td>
+                                {% if interview.latest_test_score is not none %}
+                                <div>
+                                    <a href="/view-test-details/{{ interview.latest_test_id }}" class="text-decoration-none">
+                                        <span class="badge 
+                                            {% if interview.latest_test_percentage >= 80 %}bg-success
+                                            {% elif interview.latest_test_percentage >= 60 %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ interview.latest_test_score }}/{{ interview.latest_test_total }}
+                                        </span>
+                                        <span class="ms-1 small text-muted">({{ interview.latest_test_percentage }}%)</span>
+                                    </a>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small"><i class="bi bi-dash-circle me-1"></i>Not taken</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% if interview.resume_file %}
                                 <a href="{{ url_for('static', filename='uploads/' + interview.resume_file) }}" target="_blank" class="btn btn-sm btn-outline-secondary">

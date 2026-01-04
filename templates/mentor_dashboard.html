@@ -1,6 +1,6 @@
 <!-- Mentor Dashboard Template -->
 {% extends "base.html" %}
-{% block title %}Mentor Dashboard | HireHub{% endblock %}
+{% block title %}Mentor Dashboard | Sudeshm Jobs - Interns {% endblock %}
 {% block content %}
 <div class="container mt-3">
     {% with messages = get_flashed_messages(with_categories=true) %}
@@ -458,21 +458,13 @@
                                 <td class="text-muted small" style="max-width: 260px;">{{ s.request_message }}</td>
                                 <td class="text-muted small">{{ s.started_at.strftime('%Y-%m-%d %H:%M') if s.started_at }}</td>
                                 <td class="d-flex flex-wrap gap-2 align-items-center">
-                                    <button class="btn btn-sm btn-outline-primary chat-btn"
-                                        data-room="mentor_{{ user_id }}_cand_{{ s.candidate_id }}"
-                                        data-mentee="{{ s.candidate_name }}">
+                                    <a href="/mentor-chat/{{ s.id }}" class="btn btn-sm btn-primary">
                                         <i class="bi bi-chat-dots"></i> Chat
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-secondary schedule-btn"
-                                        data-room="mentor_{{ user_id }}_cand_{{ s.candidate_id }}"
-                                        data-mentee="{{ s.candidate_name }}">
-                                        <i class="bi bi-calendar-event"></i> Schedule
-                                    </button>
+                                    </a>
                                     <button class="btn btn-sm btn-outline-success feedback-btn"
                                         data-request-id="{{ s.id }}">
                                         <i class="bi bi-send"></i> Feedback
                                     </button>
-                                    <span class="badge bg-info text-dark meeting-badge d-none"></span>
                                 </td>
                             </tr>
                             {% endfor %}

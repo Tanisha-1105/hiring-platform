@@ -37,7 +37,7 @@ app.config.update(
 
 mail = Mail(app)
 serializer = URLSafeTimedSerializer(app.secret_key)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 
 @socketio.on('join')
@@ -49,7 +49,6 @@ def on_join(data):
             join_room(f"mentor_{user_id}")
     except Exception:
         pass
-
 
 @app.route("/")
 def home():
@@ -82,15 +81,15 @@ def login():
         db = get_connection()
         cursor = db.cursor(dictionary=True)
 
-        cursor.execute("""
-            SELECT mr.id, mr.mentor_id, mr.status, mr.request_message, mr.mentor_feedback, mr.created_at,
-                   m.name AS mentor_name, mp.expertise, mp.company
-            FROM mentorship_requests mr
-            JOIN mentors m ON mr.mentor_id = m.id
-            LEFT JOIN mentor_profiles mp ON m.id = mp.mentor_id
-            WHERE mr.candidate_id = %s
-            ORDER BY mr.created_at DESC
-        "", (candidate_id,))
+        cursor.execute(
+            f"SELECT * FROM {table_map[role]} WHERE email=%s",
+            (email,)
+        )
+        user = cursor.fetchone()
+
+        cursor.close()
+        db.close()
+
         if user and check_password_hash(user["password"], password):
             session["user_id"] = user["id"]
             session["role"] = role
@@ -154,7 +153,7 @@ def reset_password_token(token):
         email = serializer.loads(
             token,
             salt="password-reset",
-            max_age=600  # 10 minutes
+            max_age=600  #10 min
         )
     except:
         return "Reset link expired or invalid"
@@ -176,8 +175,6 @@ def generate_custom_id(role):
         return None
 
     role = role.strip().lower()
-
-   
 
     role_config = {
         'candidate': {'table': 'candidates', 'prefix': 'CAND'},
@@ -435,6 +432,27 @@ def candidate_dashboard():
     # Count applied jobs (placeholder for now)
     applied_count = 0
 
+    # Fetch AI test results for this candidate
+    cursor.execute("""
+        SELECT id, test_type, total_questions, total_marks, obtained_marks, 
+               percentage, status, skills_tested, completed_at
+        FROM ai_tests
+        WHERE candidate_id = %s
+        ORDER BY completed_at DESC
+    """, (candidate_id,))
+    ai_tests = cursor.fetchall()
+
+    # Fetch AI mock interview results
+    cursor.execute("""
+        SELECT id, interview_type, position_role, difficulty_level, 
+               total_questions, questions_answered, overall_score, 
+               status, completed_at
+        FROM ai_mock_interviews
+        WHERE candidate_id = %s
+        ORDER BY started_at DESC
+    """, (candidate_id,))
+    mock_interviews = cursor.fetchall()
+
     cursor.close()
     db.close()
 
@@ -446,7 +464,9 @@ def candidate_dashboard():
         available_mentors=available_mentors,
         applied_count=applied_count,
         mentorship_requests=mentorship_requests,
-        meeting_map=meeting_map
+        meeting_map=meeting_map,
+        ai_tests=ai_tests,
+        mock_interviews=mock_interviews
     )
 @app.route('/api/profile')
 def get_profile_api():
@@ -2068,10 +2088,10 @@ def get_analytics():
         cursor.fetchall()
         active_jobs_count = max(0, total_jobs - closed_jobs_count)
 
-        # 4. Top skills in demand - Parse from candidate profiles
+        # 4. Top skills in demand - Parse from active job postings
         cursor.close()
         cursor = db.cursor(dictionary=True)
-        cursor.execute("SELECT skills FROM candidate_profiles WHERE skills IS NOT NULL AND skills != ''")
+        cursor.execute("SELECT skills FROM jobs WHERE skills IS NOT NULL AND skills != '' AND deadline >= CURDATE()")
         skills_raw = cursor.fetchall()
         
         skills_dict = {}
@@ -2090,8 +2110,9 @@ def get_analytics():
             skills_labels = [skill[0].title() for skill in sorted_skills]
             skills_demand = [skill[1] for skill in sorted_skills]
         else:
-            skills_labels = ['JavaScript', 'Python', 'React', 'Django', 'SQL', 'AWS']
-            skills_demand = [220, 190, 160, 140, 130, 110]
+            # If no jobs in database yet, show empty state
+            skills_labels = []
+            skills_demand = []
 
         cursor.close()
         db.close()
@@ -2432,7 +2453,11 @@ def applications():
             SELECT a.id, a.status, a.applied_at,
                    c.id as candidate_id, c.name as candidate_name, c.email as candidate_email,
                    j.title as job_title,
-                   cp.resume_file
+                   cp.resume_file,
+                   (SELECT id FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_id,
+                   (SELECT obtained_marks FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_score,
+                   (SELECT total_marks FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_total,
+                   (SELECT percentage FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_percentage
             FROM applications a
             JOIN candidates c ON a.candidate_id = c.id
             JOIN jobs j ON a.job_id = j.id
@@ -2474,7 +2499,11 @@ def interviews():
             SELECT a.id, a.status, a.applied_at,
                    c.id as candidate_id, c.name as candidate_name, c.email as candidate_email,
                    j.id as job_id, j.title as job_title,
-                   cp.resume_file
+                   cp.resume_file,
+                   (SELECT id FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_id,
+                   (SELECT obtained_marks FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_score,
+                   (SELECT total_marks FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_total,
+                   (SELECT percentage FROM ai_tests WHERE candidate_id = c.id AND status = 'completed' ORDER BY completed_at DESC LIMIT 1) as latest_test_percentage
             FROM applications a
             JOIN candidates c ON a.candidate_id = c.id
             JOIN jobs j ON a.job_id = j.id
@@ -2552,10 +2581,1584 @@ def update_application(app_id, action):
         flash("Error updating application", "danger")
         return redirect('/applications')
 
+@app.route('/start-ai-test', methods=['GET', 'POST'])
+def start_ai_test():
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    
+    # Get candidate profile to extract ALL skills
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    cursor.execute(
+        "SELECT * FROM candidate_profiles WHERE candidate_id = %s",
+        (candidate_id,)
+    )
+    profile = cursor.fetchone()
+    
+    if not profile:
+        cursor.close()
+        db.close()
+        flash("Please complete your profile before taking the test", "warning")
+        return redirect('/candidate-dashboard#profile')
+    
+    # Collect ALL skills from profile
+    all_skills = []
+    
+    # Add primary skills
+    if profile.get('primary_skills'):
+        all_skills.extend([s.strip() for s in str(profile.get('primary_skills', '')).split(',') if s.strip()])
+    
+    # Add secondary skills
+    if profile.get('secondary_skills'):
+        all_skills.extend([s.strip() for s in str(profile.get('secondary_skills', '')).split(',') if s.strip()])
+    
+    # Add frameworks/libraries
+    if profile.get('frameworks_libraries'):
+        all_skills.extend([s.strip() for s in str(profile.get('frameworks_libraries', '')).split(',') if s.strip()])
+    
+    # Add databases
+    if profile.get('databases'):
+        all_skills.extend([s.strip() for s in str(profile.get('databases', '')).split(',') if s.strip()])
+    
+    # Add cloud platforms
+    if profile.get('cloud_platforms'):
+        all_skills.extend([s.strip() for s in str(profile.get('cloud_platforms', '')).split(',') if s.strip()])
+    
+    # Add tools/technologies
+    if profile.get('tools_technologies'):
+        all_skills.extend([s.strip() for s in str(profile.get('tools_technologies', '')).split(',') if s.strip()])
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    all_skills = [s for s in all_skills if not (s in seen or seen.add(s))]
+    
+    if not all_skills:
+        cursor.close()
+        db.close()
+        flash("Please add skills to your profile before taking the test", "warning")
+        return redirect('/candidate-dashboard#profile')
+    
+    skills_text = ", ".join(all_skills)
+    print(f"All skills for test: {skills_text}")
+    
+    # Get all previous questions asked to this candidate for uniqueness
+    cursor.execute("""
+        SELECT DISTINCT q.question_text 
+        FROM ai_test_questions q
+        JOIN ai_tests t ON q.test_id = t.id
+        WHERE t.candidate_id = %s AND t.status = 'completed'
+    """, (candidate_id,))
+    previous_questions = [row['question_text'] for row in cursor.fetchall()]
+    print(f"Found {len(previous_questions)} previous questions for this candidate")
+    
+    # Check if there's an ongoing test
+    cursor.execute(
+        "SELECT id FROM ai_tests WHERE candidate_id = %s AND status = 'in_progress' ORDER BY started_at DESC LIMIT 1",
+        (candidate_id,)
+    )
+    existing_test = cursor.fetchone()
+    
+    if existing_test:
+        # Check if the test has questions
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM ai_test_questions WHERE test_id = %s",
+            (existing_test["id"],)
+        )
+        question_count = cursor.fetchone()
+        
+        if question_count['count'] > 0:
+            # Test has questions, continue with it
+            cursor.close()
+            db.close()
+            return redirect(f'/take-ai-test/{existing_test["id"]}')
+        else:
+            # Test exists but has no questions, delete it and create new one
+            cursor.execute("DELETE FROM ai_tests WHERE id = %s", (existing_test["id"],))
+            db.commit()
+    
+    # Create new test with ALL skills
+    print(f"Creating test for candidate {candidate_id} with skills: {skills_text}")
+    
+    cursor.execute(
+        "INSERT INTO ai_tests (candidate_id, skills_tested) VALUES (%s, %s)",
+        (candidate_id, skills_text)
+    )
+    test_id = cursor.lastrowid
+    db.commit()
+    print(f"Created test with ID: {test_id}")
+    
+    # Generate 25 AI questions based on ALL skills
+    print("Starting question generation...")
+    try:
+        questions = generate_ai_questions(skills_text, all_skills, 25, previous_questions)
+        print(f"Generated {len(questions)} questions")
+    except Exception as e:
+        # Clean up the test record if question generation fails
+        cursor.execute("DELETE FROM ai_tests WHERE id = %s", (test_id,))
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        error_msg = str(e)
+        if "GEMINI_API_KEY" in error_msg:
+            flash("AI question generation is not configured. Please contact administrator.", "danger")
+        else:
+            flash(f"Failed to generate test questions: {error_msg}. Please try again.", "danger")
+        
+        return redirect('/candidate-dashboard#ai-assessments')
+    
+    # Save questions to database
+    for idx, q in enumerate(questions, 1):
+        cursor.execute(
+            """INSERT INTO ai_test_questions 
+            (test_id, question_number, question_text, option_a, option_b, option_c, option_d, correct_answer) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            (test_id, idx, q['question'], q['option_a'], q['option_b'], q['option_c'], q['option_d'], q['correct_answer'])
+        )
+        print(f"Saved question {idx}")
+    
+    db.commit()
+    cursor.close()
+    db.close()
+    
+    return redirect(f'/take-ai-test/{test_id}')
+
+@app.route('/take-ai-test/<int:test_id>')
+def take_ai_test(test_id):
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify test belongs to candidate
+    cursor.execute(
+        "SELECT * FROM ai_tests WHERE id = %s AND candidate_id = %s",
+        (test_id, candidate_id)
+    )
+    test = cursor.fetchone()
+    
+    if not test:
+        cursor.close()
+        db.close()
+        flash("Test not found", "danger")
+        return redirect('/candidate-dashboard')
+    
+    if test['status'] == 'completed':
+        cursor.close()
+        db.close()
+        flash("You have already completed this test", "info")
+        return redirect('/candidate-dashboard#ai-assessments')
+    
+    # Get all questions for this test
+    cursor.execute(
+        "SELECT * FROM ai_test_questions WHERE test_id = %s ORDER BY question_number",
+        (test_id,)
+    )
+    questions = cursor.fetchall()
+    
+    cursor.close()
+    db.close()
+    
+    return render_template('ai_test.html', test=test, questions=questions)
+
+@app.route('/submit-answer/<int:test_id>/<int:question_id>', methods=['POST'])
+def submit_answer(test_id, question_id):
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    candidate_id = session.get('user_id')
+    data = request.get_json()
+    answer = data.get('answer')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify test belongs to candidate
+    cursor.execute(
+        "SELECT * FROM ai_tests WHERE id = %s AND candidate_id = %s AND status = 'in_progress'",
+        (test_id, candidate_id)
+    )
+    test = cursor.fetchone()
+    
+    if not test:
+        cursor.close()
+        db.close()
+        return jsonify({'success': False, 'message': 'Test not found'}), 404
+    
+    # Get question and check answer
+    cursor.execute(
+        "SELECT * FROM ai_test_questions WHERE id = %s AND test_id = %s",
+        (question_id, test_id)
+    )
+    question = cursor.fetchone()
+    
+    if not question:
+        cursor.close()
+        db.close()
+        return jsonify({'success': False, 'message': 'Question not found'}), 404
+    
+    is_correct = (answer == question['correct_answer'])
+    
+    # Update answer
+    cursor.execute(
+        "UPDATE ai_test_questions SET candidate_answer = %s, is_correct = %s WHERE id = %s",
+        (answer, is_correct, question_id)
+    )
+    
+    db.commit()
+    cursor.close()
+    db.close()
+    
+    return jsonify({'success': True, 'is_correct': is_correct})
+
+@app.route('/finish-test/<int:test_id>', methods=['POST'])
+def finish_test(test_id):
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    candidate_id = session.get('user_id')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify test belongs to candidate
+    cursor.execute(
+        "SELECT * FROM ai_tests WHERE id = %s AND candidate_id = %s AND status = 'in_progress'",
+        (test_id, candidate_id)
+    )
+    test = cursor.fetchone()
+    
+    if not test:
+        cursor.close()
+        db.close()
+        return jsonify({'success': False, 'message': 'Test not found'}), 404
+    
+    # Calculate marks
+    cursor.execute(
+        "SELECT COUNT(*) as correct FROM ai_test_questions WHERE test_id = %s AND is_correct = 1",
+        (test_id,)
+    )
+    result = cursor.fetchone()
+    correct_count = result['correct']
+    
+    obtained_marks = correct_count * 2
+    percentage = (obtained_marks / test['total_marks']) * 100
+    
+    # Analyze skill gaps - identify weak skills
+    cursor.execute("""
+        SELECT question_text, is_correct 
+        FROM ai_test_questions 
+        WHERE test_id = %s
+    """, (test_id,))
+    all_questions = cursor.fetchall()
+    
+    skill_analysis = {}
+    weak_skills = []
+    
+    for q in all_questions:
+        # Extract skill from question text (format: [Skill - Level] Question)
+        question = q['question_text']
+        if '[' in question and ']' in question:
+            skill_part = question[question.find('[')+1:question.find(']')]
+            if ' - ' in skill_part:
+                skill = skill_part.split(' - ')[0].strip()
+                
+                if skill not in skill_analysis:
+                    skill_analysis[skill] = {'total': 0, 'correct': 0}
+                
+                skill_analysis[skill]['total'] += 1
+                if q['is_correct']:
+                    skill_analysis[skill]['correct'] += 1
+    
+    # Identify weak skills (less than 60% accuracy)
+    for skill, stats in skill_analysis.items():
+        accuracy = (stats['correct'] / stats['total'] * 100) if stats['total'] > 0 else 0
+        if accuracy < 60:
+            weak_skills.append(skill)
+    
+    skill_gap_report = ', '.join(weak_skills) if weak_skills else 'No major gaps identified'
+    
+    # Update test status with skill gap analysis
+    cursor.execute(
+        "UPDATE ai_tests SET status = 'completed', obtained_marks = %s, percentage = %s, completed_at = NOW() WHERE id = %s",
+        (obtained_marks, percentage, test_id)
+    )
+    
+    db.commit()
+    cursor.close()
+    db.close()
+    
+    return jsonify({
+        'success': True,
+        'obtained_marks': obtained_marks,
+        'total_marks': test['total_marks'],
+        'percentage': round(percentage, 2),
+        'correct_count': correct_count,
+        'total_questions': test['total_questions'],
+        'skill_gaps': weak_skills,
+        'skill_gap_report': skill_gap_report
+    })
+
+@app.route('/view-candidate-test/<int:candidate_id>')
+def view_candidate_test(candidate_id):
+    if session.get('role') != 'recruiter':
+        return redirect('/login')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Get all completed tests for this candidate
+    cursor.execute("""
+        SELECT id, test_type, total_questions, total_marks, obtained_marks, 
+               percentage, skills_tested, completed_at
+        FROM ai_tests
+        WHERE candidate_id = %s AND status = 'completed'
+        ORDER BY completed_at DESC
+    """, (candidate_id,))
+    tests = cursor.fetchall()
+    
+    # Get candidate info
+    cursor.execute("SELECT name, email FROM candidates WHERE id = %s", (candidate_id,))
+    candidate = cursor.fetchone()
+    
+    cursor.close()
+    db.close()
+    
+    if not candidate:
+        flash("Candidate not found", "danger")
+        return redirect('/applications')
+    
+    return render_template('view_candidate_tests.html', tests=tests, candidate=candidate)
+
+@app.route('/skill-gap-analysis/<int:test_id>')
+def skill_gap_analysis(test_id):
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify test belongs to candidate
+    cursor.execute(
+        "SELECT * FROM ai_tests WHERE id = %s AND candidate_id = %s AND status = 'completed'",
+        (test_id, candidate_id)
+    )
+    test = cursor.fetchone()
+    
+    if not test:
+        cursor.close()
+        db.close()
+        flash("Test not found", "danger")
+        return redirect('/candidate-dashboard#ai-assessments')
+    
+    # Get all questions and analyze by skill
+    cursor.execute("""
+        SELECT question_text, is_correct, candidate_answer, correct_answer
+        FROM ai_test_questions 
+        WHERE test_id = %s
+        ORDER BY question_number
+    """, (test_id,))
+    questions = cursor.fetchall()
+    
+    cursor.close()
+    db.close()
+    
+    # Analyze skills
+    skill_performance = {}
+    for q in questions:
+        question = q['question_text']
+        if '[' in question and ']' in question:
+            skill_part = question[question.find('[')+1:question.find(']')]
+            if ' - ' in skill_part:
+                parts = skill_part.split(' - ')
+                skill = parts[0].strip()
+                level = parts[1].strip() if len(parts) > 1 else 'MEDIUM'
+                
+                if skill not in skill_performance:
+                    skill_performance[skill] = {
+                        'total': 0,
+                        'correct': 0,
+                        'wrong': 0,
+                        'easy': {'total': 0, 'correct': 0},
+                        'medium': {'total': 0, 'correct': 0},
+                        'hard': {'total': 0, 'correct': 0}
+                    }
+                
+                skill_performance[skill]['total'] += 1
+                
+                # Track by difficulty
+                level_key = level.lower()
+                if level_key in skill_performance[skill]:
+                    skill_performance[skill][level_key]['total'] += 1
+                    if q['is_correct']:
+                        skill_performance[skill][level_key]['correct'] += 1
+                
+                if q['is_correct']:
+                    skill_performance[skill]['correct'] += 1
+                else:
+                    skill_performance[skill]['wrong'] += 1
+    
+    # Calculate percentages and identify weak skills
+    weak_skills = []
+    strong_skills = []
+    
+    for skill, stats in skill_performance.items():
+        stats['percentage'] = round((stats['correct'] / stats['total'] * 100), 1) if stats['total'] > 0 else 0
+        stats['skill_name'] = skill
+        
+        if stats['percentage'] < 60:
+            weak_skills.append(stats)
+        elif stats['percentage'] >= 80:
+            strong_skills.append(stats)
+    
+    # Get course recommendations for weak skills
+    recommendations = get_course_recommendations(weak_skills)
+    
+    return render_template('skill_gap_analysis.html', 
+                         test=test, 
+                         skill_performance=skill_performance,
+                         weak_skills=weak_skills,
+                         strong_skills=strong_skills,
+                         recommendations=recommendations)
+
+def get_course_recommendations(weak_skills):
+    """Generate course and video recommendations for weak skills"""
+    recommendations = {}
+    
+    # Course database with popular learning resources
+    course_library = {
+        'Python': [
+            {'title': 'Python for Everybody - Coursera', 'url': 'https://www.coursera.org/specializations/python', 'type': 'Course', 'platform': 'Coursera'},
+            {'title': 'Complete Python Bootcamp - Udemy', 'url': 'https://www.udemy.com/course/complete-python-bootcamp/', 'type': 'Course', 'platform': 'Udemy'},
+            {'title': 'Python Tutorial - Programming with Mosh', 'url': 'https://www.youtube.com/watch?v=_uQrJ0TkZlc', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'SQL': [
+            {'title': 'SQL for Data Science - Coursera', 'url': 'https://www.coursera.org/learn/sql-for-data-science', 'type': 'Course', 'platform': 'Coursera'},
+            {'title': 'The Complete SQL Bootcamp - Udemy', 'url': 'https://www.udemy.com/course/the-complete-sql-bootcamp/', 'type': 'Course', 'platform': 'Udemy'},
+            {'title': 'SQL Tutorial - Full Database Course', 'url': 'https://www.youtube.com/watch?v=HXV3zeQKqGY', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'JavaScript': [
+            {'title': 'JavaScript - The Complete Guide - Udemy', 'url': 'https://www.udemy.com/course/javascript-the-complete-guide-2020-beginner-advanced/', 'type': 'Course', 'platform': 'Udemy'},
+            {'title': 'JavaScript Algorithms and Data Structures', 'url': 'https://www.freecodecamp.org/learn/javascript-algorithms-and-data-structures/', 'type': 'Course', 'platform': 'freeCodeCamp'},
+            {'title': 'JavaScript Crash Course', 'url': 'https://www.youtube.com/watch?v=hdI2bqOjy3c', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'HTML': [
+            {'title': 'HTML Full Course - Build a Website Tutorial', 'url': 'https://www.youtube.com/watch?v=pQN-pnXPaVg', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'Responsive Web Design - freeCodeCamp', 'url': 'https://www.freecodecamp.org/learn/responsive-web-design/', 'type': 'Course', 'platform': 'freeCodeCamp'},
+        ],
+        'CSS': [
+            {'title': 'CSS - The Complete Guide - Udemy', 'url': 'https://www.udemy.com/course/css-the-complete-guide-incl-flexbox-grid-sass/', 'type': 'Course', 'platform': 'Udemy'},
+            {'title': 'CSS Tutorial - Zero to Hero', 'url': 'https://www.youtube.com/watch?v=1Rs2ND1ryYc', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'Responsive Web Design - freeCodeCamp', 'url': 'https://www.freecodecamp.org/learn/responsive-web-design/', 'type': 'Course', 'platform': 'freeCodeCamp'},
+        ],
+        'React': [
+            {'title': 'React - The Complete Guide - Udemy', 'url': 'https://www.udemy.com/course/react-the-complete-guide-incl-redux/', 'type': 'Course', 'platform': 'Udemy'},
+            {'title': 'React JS Full Course - YouTube', 'url': 'https://www.youtube.com/watch?v=bMknfKXIFA8', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'Django': [
+            {'title': 'Django for Everybody - Coursera', 'url': 'https://www.coursera.org/specializations/django', 'type': 'Course', 'platform': 'Coursera'},
+            {'title': 'Python Django Tutorial - YouTube', 'url': 'https://www.youtube.com/watch?v=F5mRW0jo-U4', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'Flask': [
+            {'title': 'Flask Mega-Tutorial', 'url': 'https://blog.miguelgrinberg.com/post/the-flask-mega-tutorial-part-i-hello-world', 'type': 'Tutorial', 'platform': 'Blog'},
+            {'title': 'Flask Course - Python Web Development', 'url': 'https://www.youtube.com/watch?v=Qr4QMBUPxWo', 'type': 'Video', 'platform': 'YouTube'},
+        ],
+        'Git': [
+            {'title': 'Git and GitHub for Beginners', 'url': 'https://www.youtube.com/watch?v=RGOj5yH7evk', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'Version Control with Git - Coursera', 'url': 'https://www.coursera.org/learn/version-control-with-git', 'type': 'Course', 'platform': 'Coursera'},
+        ],
+        'AWS': [
+            {'title': 'AWS Certified Cloud Practitioner', 'url': 'https://www.youtube.com/watch?v=3hLmDS179YE', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'AWS Fundamentals - Coursera', 'url': 'https://www.coursera.org/learn/aws-fundamentals-going-cloud-native', 'type': 'Course', 'platform': 'Coursera'},
+        ],
+        'REST': [
+            {'title': 'REST API concepts and examples', 'url': 'https://www.youtube.com/watch?v=7YcW25PHnAA', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'REST APIs with Flask and Python', 'url': 'https://www.udemy.com/course/rest-api-flask-and-python/', 'type': 'Course', 'platform': 'Udemy'},
+        ],
+        'MySQL': [
+            {'title': 'MySQL Tutorial for Beginners', 'url': 'https://www.youtube.com/watch?v=7S_tz1z_5bA', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'MySQL Database Development Mastery', 'url': 'https://www.udemy.com/course/mysql-database-development-mastery/', 'type': 'Course', 'platform': 'Udemy'},
+        ],
+        'PostgreSQL': [
+            {'title': 'PostgreSQL Tutorial Full Course', 'url': 'https://www.youtube.com/watch?v=qw--VYLpxG4', 'type': 'Video', 'platform': 'YouTube'},
+            {'title': 'The Complete PostgreSQL Course', 'url': 'https://www.udemy.com/course/the-complete-python-postgresql-developer-course/', 'type': 'Course', 'platform': 'Udemy'},
+        ],
+    }
+    
+    # Default recommendations for any skill not in library
+    default_recommendations = [
+        {'title': 'Search on Udemy', 'url': 'https://www.udemy.com', 'type': 'Platform', 'platform': 'Udemy'},
+        {'title': 'Search on Coursera', 'url': 'https://www.coursera.org', 'type': 'Platform', 'platform': 'Coursera'},
+        {'title': 'Search on YouTube', 'url': 'https://www.youtube.com', 'type': 'Platform', 'platform': 'YouTube'},
+        {'title': 'freeCodeCamp', 'url': 'https://www.freecodecamp.org', 'type': 'Platform', 'platform': 'freeCodeCamp'},
+    ]
+    
+    for skill_data in weak_skills:
+        skill = skill_data['skill_name']
+        
+        # Find matching courses (case-insensitive partial match)
+        matching_courses = []
+        for key, courses in course_library.items():
+            if key.lower() in skill.lower() or skill.lower() in key.lower():
+                matching_courses.extend(courses)
+        
+        if matching_courses:
+            recommendations[skill] = matching_courses
+        else:
+            # Use default recommendations
+            recommendations[skill] = default_recommendations
+    
+    return recommendations
+
+@app.route('/view-test-details/<int:test_id>')
+def view_test_details(test_id):
+    if session.get('role') not in ['recruiter', 'candidate']:
+        return redirect('/login')
+    
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Get test details
+    cursor.execute("SELECT * FROM ai_tests WHERE id = %s", (test_id,))
+    test = cursor.fetchone()
+    
+    if not test:
+        cursor.close()
+        db.close()
+        flash("Test not found", "danger")
+        return redirect('/candidate-dashboard' if user_role == 'candidate' else '/applications')
+    
+    # Authorization check
+    if user_role == 'candidate' and test['candidate_id'] != user_id:
+        cursor.close()
+        db.close()
+        flash("Unauthorized access", "danger")
+        return redirect('/candidate-dashboard')
+    
+    # For recruiters, verify the candidate applied to their jobs
+    if user_role == 'recruiter':
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM applications a
+            JOIN jobs j ON a.job_id = j.id
+            WHERE a.candidate_id = %s AND j.recruiter_id = %s
+        """, (test['candidate_id'], user_id))
+        result = cursor.fetchone()
+        if result['count'] == 0:
+            cursor.close()
+            db.close()
+            flash("Unauthorized access", "danger")
+            return redirect('/applications')
+    
+    # Get all questions for this test
+    cursor.execute("""
+        SELECT * FROM ai_test_questions 
+        WHERE test_id = %s 
+        ORDER BY question_number
+    """, (test_id,))
+    questions = cursor.fetchall()
+    
+    # Get candidate info
+    cursor.execute("SELECT name FROM candidates WHERE id = %s", (test['candidate_id'],))
+    candidate = cursor.fetchone()
+    
+    cursor.close()
+    db.close()
+    
+    return render_template('test_details.html', test=test, questions=questions, candidate=candidate)
+
+def generate_ai_questions(skills_text, skills_list, num_questions=25, previous_questions=None):
+    """Generate AI-powered questions based on candidate skills, ensuring uniqueness"""
+    import google.generativeai as genai
+    
+    # Configure API key from environment
+    api_key = os.environ.get('GEMINI_API_KEY')
+    print(f"API Key available: {bool(api_key)}")
+    
+    if not api_key:
+        print("ERROR: No API key found. AI generation is REQUIRED.")
+        raise Exception("GEMINI_API_KEY not configured. Cannot generate questions without AI.")
+    
+    try:
+        print(f"Generating {num_questions} questions for skills: {skills_text}")
+        print(f"Skills list: {skills_list}")
+        print(f"Number of skills: {len(skills_list)}")
+        print(f"Number of previous questions to avoid: {len(previous_questions) if previous_questions else 0}")
+        
+        genai.configure(api_key=api_key)
+        
+        # Get the first available model that supports generateContent
+        model = None
+        available_models = []
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_models.append(m.name)
+                if model is None:
+                    model = genai.GenerativeModel(model_name=m.name)
+                    print(f"Using model: {m.name}")
+        
+        if model is None:
+            print("Available models:", available_models)
+            raise Exception("No compatible Gemini model found that supports generateContent")
+        
+        # Add timestamp for uniqueness seed
+        import time
+        timestamp = int(time.time())
+        
+        # Calculate distribution: ~33% easy, ~33% medium, ~34% hard
+        easy_count = num_questions // 3
+        medium_count = num_questions // 3
+        hard_count = num_questions - easy_count - medium_count
+        
+        # Calculate questions per skill
+        questions_per_skill = max(1, num_questions // len(skills_list)) if len(skills_list) > 0 else 1
+        
+        # Build exclusion list if previous questions exist
+        exclusion_text = ""
+        if previous_questions and len(previous_questions) > 0:
+            exclusion_text = f"""
+
+CRITICAL: DO NOT REPEAT ANY OF THESE PREVIOUSLY ASKED QUESTIONS:
+{chr(10).join([f"- {q}" for q in previous_questions[:50]])}  
+
+You MUST generate COMPLETELY NEW and DIFFERENT questions that have NEVER been asked before to this candidate."""
+        
+        prompt = f"""Generate {num_questions} COMPLETELY UNIQUE multiple choice technical questions.
+
+TEST ID: {timestamp} (Use this to ensure uniqueness)
+
+SKILLS TO COVER: {', '.join(skills_list)}
+{exclusion_text}
+
+CRITICAL REQUIREMENTS:
+1. MUST generate exactly {num_questions} UNIQUE questions - NO DUPLICATES
+2. Questions must be COMPLETELY DIFFERENT from any previous questions listed above
+3. MUST distribute questions EVENLY across ALL {len(skills_list)} skills mentioned
+4. MUST generate approximately {questions_per_skill} questions per skill
+5. Each question focuses on ONE specific skill ONLY
+6. Mix difficulty: ~{easy_count} EASY, ~{medium_count} MEDIUM, ~{hard_count} HARD
+7. Use fresh scenarios, different concepts, and varied question styles
+
+SKILL DISTRIBUTION PLAN:
+{chr(10).join([f"- {skill}: ~{questions_per_skill} questions" for skill in skills_list])}
+
+DIFFICULTY LEVELS:
+- EASY: Basic concepts, definitions, fundamental syntax
+- MEDIUM: Application, problem-solving, best practices, common patterns
+- HARD: Advanced concepts, optimization, edge cases, complex scenarios, architecture
+
+FORMAT (EXACTLY):
+SKILL: [Specific skill name from the list above]
+LEVEL: [EASY/MEDIUM/HARD]
+Q: [Unique question text]
+A) [Option A]
+B) [Option B]
+C) [Option C]
+D) [Option D]
+ANSWER: [A/B/C/D]
+---
+
+Generate all {num_questions} questions NOW. Cover each skill from the list. Make questions FRESH and UNIQUE!"""
+        
+        print("Calling Gemini API...")
+        response = model.generate_content(prompt)
+        questions_text = response.text
+        print(f"Received response, length: {len(questions_text)}")
+        
+        # Parse the response
+        questions = []
+        question_blocks = questions_text.split('---')
+        print(f"Found {len(question_blocks)} blocks")
+        
+        for block in question_blocks:
+            block = block.strip()
+            if not block or 'Q:' not in block:
+                continue
+                
+            try:
+                # Extract skill
+                skill = "General"
+                if 'SKILL:' in block:
+                    skill_start = block.find('SKILL:') + 6
+                    skill_end = block.find('\n', skill_start)
+                    skill = block[skill_start:skill_end].strip()
+                
+                # Extract difficulty level
+                level = "MEDIUM"
+                if 'LEVEL:' in block:
+                    level_start = block.find('LEVEL:') + 6
+                    level_end = block.find('\n', level_start)
+                    level = block[level_start:level_end].strip()
+                
+                # Extract question with skill tag
+                q_start = block.find('Q:') + 2
+                q_end = block.find('A)')
+                question_text = block[q_start:q_end].strip()
+                
+                # Prepend skill and level to question
+                question = f"[{skill} - {level}] {question_text}"
+                
+                # Extract options
+                a_start = block.find('A)') + 2
+                b_start = block.find('B)')
+
+                option_a = block[a_start:b_start].strip()
+                
+                b_start = block.find('B)') + 2
+                c_start = block.find('C)')
+                option_b = block[b_start:c_start].strip()
+                
+                c_start = block.find('C)') + 2
+                d_start = block.find('D)')
+                option_c = block[c_start:d_start].strip()
+                
+                d_start = block.find('D)') + 2
+                ans_start = block.find('ANSWER:')
+                option_d = block[d_start:ans_start].strip()
+                
+                # Extract answer
+                ans_start = block.find('ANSWER:') + 7
+                correct_answer = block[ans_start:].strip()[0].upper()
+                
+                questions.append({
+                    'question': question,
+                    'option_a': option_a,
+                    'option_b': option_b,
+                    'option_c': option_c,
+                    'option_d': option_d,
+                    'correct_answer': correct_answer
+                })
+                
+                if len(questions) >= num_questions:
+                    break
+            except Exception as parse_error:
+                print(f"Error parsing question block: {parse_error}")
+                continue
+        
+        print(f"Successfully parsed {len(questions)} questions")
+        
+        # If we didn't get enough questions, try again with a more explicit prompt
+        if len(questions) < num_questions:
+            print(f"Only got {len(questions)} questions, need {num_questions}. Trying again...")
+            retry_prompt = f"""I need EXACTLY {num_questions - len(questions)} MORE unique questions.
+
+REMAINING SKILLS: {', '.join(skills_list)}
+
+Generate {num_questions - len(questions)} COMPLETELY NEW questions that are DIFFERENT from previous ones.
+
+FORMAT (EXACTLY):
+SKILL: [skill name]
+LEVEL: [EASY/MEDIUM/HARD]
+Q: [question]
+A) [option]
+B) [option]
+C) [option]
+D) [option]
+ANSWER: [A/B/C/D]
+---"""
+            
+            retry_response = model.generate_content(retry_prompt)
+            retry_blocks = retry_response.text.split('---')
+            
+            for block in retry_blocks:
+                block = block.strip()
+                if not block or 'Q:' not in block:
+                    continue
+                    
+                try:
+                    # Extract skill
+                    skill = "General"
+                    if 'SKILL:' in block:
+                        skill_start = block.find('SKILL:') + 6
+                        skill_end = block.find('\n', skill_start)
+                        skill = block[skill_start:skill_end].strip()
+                    
+                    # Extract difficulty level
+                    level = "MEDIUM"
+                    if 'LEVEL:' in block:
+                        level_start = block.find('LEVEL:') + 6
+                        level_end = block.find('\n', level_start)
+                        level = block[level_start:level_end].strip()
+                    
+                    # Extract question with skill tag
+                    q_start = block.find('Q:') + 2
+                    q_end = block.find('A)')
+                    question_text = block[q_start:q_end].strip()
+                    
+                    # Prepend skill and level to question
+                    question = f"[{skill} - {level}] {question_text}"
+                    
+                    # Extract options
+                    a_start = block.find('A)') + 2
+                    b_start = block.find('B)')
+                    option_a = block[a_start:b_start].strip()
+                    
+                    b_start = block.find('B)') + 2
+                    c_start = block.find('C)')
+                    option_b = block[b_start:c_start].strip()
+                    
+                    c_start = block.find('C)') + 2
+                    d_start = block.find('D)')
+                    option_c = block[c_start:d_start].strip()
+                    
+                    d_start = block.find('D)') + 2
+                    ans_start = block.find('ANSWER:')
+                    option_d = block[d_start:ans_start].strip()
+                    
+                    # Extract answer
+                    ans_start = block.find('ANSWER:') + 7
+                    correct_answer = block[ans_start:].strip()[0].upper()
+                    
+                    questions.append({
+                        'question': question,
+                        'option_a': option_a,
+                        'option_b': option_b,
+                        'option_c': option_c,
+                        'option_d': option_d,
+                        'correct_answer': correct_answer
+                    })
+                    
+                    if len(questions) >= num_questions:
+                        break
+                except Exception as parse_error:
+                    print(f"Error parsing retry question: {parse_error}")
+                    continue
+            
+            print(f"After retry: {len(questions)} total questions")
+        
+        if len(questions) < num_questions:
+            raise Exception(f"AI could only generate {len(questions)} questions out of {num_questions} required. Please try again.")
+        
+        # Verify uniqueness against previous questions
+        if previous_questions:
+            unique_questions = []
+            for q in questions:
+                # Remove the [Skill - Level] prefix for comparison
+                q_text = q['question']
+                if ']' in q_text:
+                    q_text_clean = q_text.split(']', 1)[1].strip()
+                else:
+                    q_text_clean = q_text
+                
+                # Check if this question is similar to any previous question
+                is_duplicate = False
+                for prev_q in previous_questions:
+                    prev_q_clean = prev_q.split(']', 1)[1].strip() if ']' in prev_q else prev_q
+                    # Simple similarity check - if 80% of words match, consider duplicate
+                    if prev_q_clean.lower() == q_text_clean.lower():
+                        is_duplicate = True
+                        print(f"Duplicate detected: {q_text_clean[:50]}...")
+                        break
+                
+                if not is_duplicate:
+                    unique_questions.append(q)
+            
+            print(f"Filtered to {len(unique_questions)} unique questions from {len(questions)}")
+            
+            if len(unique_questions) < num_questions:
+                print(f"Warning: Only {len(unique_questions)} unique questions after filtering. Using all available.")
+                questions = unique_questions
+            else:
+                questions = unique_questions[:num_questions]
+        
+        return questions[:num_questions]
+        
+    except Exception as e:
+        print(f"AI generation error: {e}")
+        import traceback
+        traceback.print_exc()
+        raise Exception(f"Failed to generate AI questions: {str(e)}")
+
+def generate_fallback_questions(skills_list, num_questions=25):
+    """
+    DEPRECATED: Fallback questions are no longer used.
+    All questions must be AI-generated.
+    """
+    raise Exception("Fallback questions are disabled. Only AI-generated questions are allowed. Please ensure GEMINI_API_KEY is configured.")
+
+@app.route('/mentor-chat/<int:mentorship_request_id>')
+def mentor_chat(mentorship_request_id):
+    user_role = session.get('role')
+    user_id = session.get('user_id')
+    
+    if not user_role or user_role not in ['candidate', 'mentor']:
+        return redirect('/login')
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Get mentorship request details and verify access
+    cursor.execute("""
+        SELECT mr.*, 
+               c.name as candidate_name, c.email as candidate_email,
+               m.name as mentor_name, m.email as mentor_email,
+               mp.expertise, mp.company
+        FROM mentorship_requests mr
+        JOIN candidates c ON mr.candidate_id = c.id
+        JOIN mentors m ON mr.mentor_id = m.id
+        LEFT JOIN mentor_profiles mp ON m.id = mp.mentor_id
+        WHERE mr.id = %s
+    """, (mentorship_request_id,))
+    request = cursor.fetchone()
+    
+    if not request:
+        cursor.close()
+        db.close()
+        flash("Mentorship request not found", "danger")
+        return redirect('/candidate-dashboard' if user_role == 'candidate' else '/mentor-dashboard')
+    
+    # Verify user has access to this chat
+    if user_role == 'candidate' and request['candidate_id'] != user_id:
+        cursor.close()
+        db.close()
+        flash("Unauthorized access", "danger")
+        return redirect('/candidate-dashboard')
+    
+    if user_role == 'mentor' and request['mentor_id'] != user_id:
+        cursor.close()
+        db.close()
+        flash("Unauthorized access", "danger")
+        return redirect('/mentor-dashboard')
+    
+    # Only allow chat if request is accepted
+    if request['status'] != 'Accepted':
+        cursor.close()
+        db.close()
+        flash("Chat is only available for accepted mentorship requests", "warning")
+        return redirect('/candidate-dashboard' if user_role == 'candidate' else '/mentor-dashboard')
+    
+    # Get all messages for this mentorship
+    cursor.execute("""
+        SELECT mm.*, 
+               CASE 
+                   WHEN mm.sender_role = 'candidate' THEN c.name
+                   WHEN mm.sender_role = 'mentor' THEN m.name
+               END as sender_name
+        FROM mentor_messages mm
+        LEFT JOIN candidates c ON mm.sender_id = c.id AND mm.sender_role = 'candidate'
+        LEFT JOIN mentors m ON mm.sender_id = m.id AND mm.sender_role = 'mentor'
+        WHERE mm.mentorship_request_id = %s
+        ORDER BY mm.created_at ASC
+    """, (mentorship_request_id,))
+    messages = cursor.fetchall()
+    
+    # Mark messages as read for the current user
+    cursor.execute("""
+        UPDATE mentor_messages 
+        SET is_read = 1 
+        WHERE mentorship_request_id = %s 
+        AND sender_role != %s
+        AND is_read = 0
+    """, (mentorship_request_id, user_role))
+    db.commit()
+    
+    # Check if meeting is scheduled
+    cursor.execute("""
+        SELECT * FROM mentor_meetings 
+        WHERE mentor_id = %s AND candidate_id = %s
+    """, (request['mentor_id'], request['candidate_id']))
+    meeting = cursor.fetchone()
+
+    from datetime import datetime, date, time, timedelta
+
+    # Normalize meeting date/time values for safe template rendering
+    if meeting:
+        meeting_date = meeting.get('meeting_date')
+        meeting_time = meeting.get('meeting_time')
+
+        if isinstance(meeting_date, (datetime, date)):
+            meeting['meeting_date_formatted'] = meeting_date.strftime('%d %b %Y')
+        else:
+            meeting['meeting_date_formatted'] = meeting_date
+
+        if isinstance(meeting_time, (datetime, time)):
+            meeting['meeting_time_formatted'] = meeting_time.strftime('%I:%M %p')
+        elif isinstance(meeting_time, timedelta):
+            meeting_time_obj = (datetime.min + meeting_time).time()
+            meeting['meeting_time_formatted'] = meeting_time_obj.strftime('%I:%M %p')
+        else:
+            meeting['meeting_time_formatted'] = meeting_time
+    
+    cursor.close()
+    db.close()
+    
+    return render_template('mentor_chat.html', 
+                         request=request, 
+                         messages=messages, 
+                         user_role=user_role,
+                         meeting=meeting,
+                         now=datetime.now(),
+                         timedelta=timedelta)
+
+@app.route('/send-mentor-message', methods=['POST'])
+def send_mentor_message():
+    user_role = session.get('role')
+    user_id = session.get('user_id')
+    
+    if not user_role or user_role not in ['candidate', 'mentor']:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+    
+    data = request.get_json()
+    mentorship_request_id = data.get('mentorship_request_id')
+    message_text = data.get('message', '').strip()
+    
+    if not message_text:
+        return jsonify({'success': False, 'message': 'Message cannot be empty'}), 400
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify access
+    cursor.execute("""
+        SELECT * FROM mentorship_requests 
+        WHERE id = %s AND (candidate_id = %s OR mentor_id = %s) AND status = 'Accepted'
+    """, (mentorship_request_id, user_id, user_id))
+    request_data = cursor.fetchone()
+    
+    if not request_data:
+        cursor.close()
+        db.close()
+        return jsonify({'success': False, 'message': 'Invalid request'}), 403
+    
+    # Insert message
+    cursor.execute("""
+        INSERT INTO mentor_messages (mentorship_request_id, sender_role, sender_id, message_text)
+        VALUES (%s, %s, %s, %s)
+    """, (mentorship_request_id, user_role, user_id, message_text))
+    db.commit()
+    
+    message_id = cursor.lastrowid
+    
+    # Get sender name
+    if user_role == 'candidate':
+        cursor.execute("SELECT name FROM candidates WHERE id = %s", (user_id,))
+    else:
+        cursor.execute("SELECT name FROM mentors WHERE id = %s", (user_id,))
+    sender = cursor.fetchone()
+    
+    cursor.close()
+    db.close()
+    
+    # Emit socket event for real-time update
+    socketio.emit('new_mentor_message', {
+        'id': message_id,
+        'mentorship_request_id': mentorship_request_id,
+        'sender_role': user_role,
+        'sender_name': sender['name'] if sender else 'Unknown',
+        'message_text': message_text,
+        'created_at': 'Just now'
+    }, room=f"mentorship_{mentorship_request_id}")
+    
+    return jsonify({'success': True, 'message': 'Message sent'})
+
+@app.route('/schedule-mentor-meeting', methods=['POST'])
+def schedule_mentor_meeting():
+    user_role = session.get('role')
+    user_id = session.get('user_id')
+    
+    if user_role != 'mentor':
+        return jsonify({'success': False, 'message': 'Only mentors can schedule meetings'}), 401
+    
+    data = request.get_json()
+    candidate_id = data.get('candidate_id')
+    mode = data.get('mode')
+    meeting_date = data.get('meeting_date')
+    meeting_time = data.get('meeting_time')
+    meeting_link = data.get('meeting_link', '')
+    notes = data.get('notes', '')
+    
+    if not all([candidate_id, mode, meeting_date, meeting_time]):
+        return jsonify({'success': False, 'message': 'All fields are required'}), 400
+    
+    db = get_connection()
+    cursor = db.cursor()
+    
+    # Check if meeting already exists
+    cursor.execute("""
+        SELECT id FROM mentor_meetings 
+        WHERE mentor_id = %s AND candidate_id = %s
+    """, (user_id, candidate_id))
+    existing = cursor.fetchone()
+    
+    if existing:
+        # Update existing meeting
+        cursor.execute("""
+            UPDATE mentor_meetings 
+            SET mode = %s, meeting_date = %s, meeting_time = %s, 
+                meeting_link = %s, notes = %s
+            WHERE mentor_id = %s AND candidate_id = %s
+        """, (mode, meeting_date, meeting_time, meeting_link, notes, user_id, candidate_id))
+    else:
+        # Insert new meeting
+        cursor.execute("""
+            INSERT INTO mentor_meetings 
+            (mentor_id, candidate_id, mode, meeting_date, meeting_time, meeting_link, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (user_id, candidate_id, mode, meeting_date, meeting_time, meeting_link, notes))
+    
+    db.commit()
+    cursor.close()
+    db.close()
+    
+    # Send notification to candidate
+    send_notification('candidate', candidate_id, 
+                     f'Your mentor has scheduled a meeting on {meeting_date} at {meeting_time}')
+    
+    return jsonify({'success': True, 'message': 'Meeting scheduled successfully'})
+
+# ==================== AI MOCK INTERVIEW ROUTES ====================
+
+@app.route('/start-mock-interview', methods=['GET', 'POST'])
+def start_mock_interview():
+    """Start a new AI mock interview session"""
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    
+    if request.method == 'POST':
+        interview_type = request.form.get('interview_type', 'technical')
+        position_role = request.form.get('position_role', 'Software Engineer')
+        difficulty_level = request.form.get('difficulty_level', 'medium')
+        
+        db = get_connection()
+        cursor = db.cursor()
+        
+        try:
+            # Create new interview session
+            cursor.execute("""
+                INSERT INTO ai_mock_interviews 
+                (candidate_id, interview_type, position_role, difficulty_level, status)
+                VALUES (%s, %s, %s, %s, 'in_progress')
+            """, (candidate_id, interview_type, position_role, difficulty_level))
+            
+            interview_id = cursor.lastrowid
+            db.commit()
+            cursor.close()
+            db.close()
+            
+            return redirect(f'/mock-interview/{interview_id}')
+            
+        except Exception as e:
+            db.rollback()
+            cursor.close()
+            db.close()
+            flash(f'Error starting interview: {str(e)}', 'danger')
+            return redirect('/candidate-dashboard#ai-assessments')
+    
+    # GET request - show interview setup page
+    return render_template('start_mock_interview.html')
+
+@app.route('/mock-interview/<int:interview_id>')
+def mock_interview(interview_id):
+    """Main interview interface page"""
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Verify interview belongs to candidate
+    cursor.execute("""
+        SELECT * FROM ai_mock_interviews 
+        WHERE id = %s AND candidate_id = %s
+    """, (interview_id, candidate_id))
+    
+    interview = cursor.fetchone()
+    cursor.close()
+    db.close()
+    
+    if not interview:
+        flash('Interview not found', 'danger')
+        return redirect('/candidate-dashboard#ai-assessments')
+    
+    if interview['status'] == 'completed':
+        return redirect(f'/mock-interview-result/{interview_id}')
+    
+    return render_template('mock_interview.html', interview=interview)
+
+@app.route('/api/interview/next-question/<int:interview_id>', methods=['POST'])
+def get_next_question(interview_id):
+    """Generate next interview question using AI"""
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    candidate_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    try:
+        # Get interview details
+        cursor.execute("""
+            SELECT * FROM ai_mock_interviews 
+            WHERE id = %s AND candidate_id = %s AND status = 'in_progress'
+        """, (interview_id, candidate_id))
+        
+        interview = cursor.fetchone()
+        if not interview:
+            return jsonify({'success': False, 'error': 'Interview not found'}), 404
+        
+        # Check if we've reached the question limit
+        current_question_num = interview['questions_answered'] + 1
+        if current_question_num > interview['total_questions']:
+            return jsonify({'success': False, 'completed': True})
+        
+        # Get previous questions to maintain context
+        cursor.execute("""
+            SELECT question_text, candidate_answer 
+            FROM ai_interview_responses 
+            WHERE interview_id = %s 
+            ORDER BY question_number
+        """, (interview_id,))
+        previous_qa = cursor.fetchall()
+        
+        # Generate question using AI
+        import google.generativeai as genai
+        api_key = os.environ.get('GEMINI_API_KEY')
+        
+        if not api_key:
+            return jsonify({'success': False, 'error': 'AI service not configured'}), 500
+        
+        genai.configure(api_key=api_key)
+        
+        # Get first available model that supports generateContent
+        model = None
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                model = genai.GenerativeModel(model_name=m.name)
+                break
+        
+        if model is None:
+            return jsonify({'success': False, 'error': 'No compatible AI model available'}), 500
+        
+        # Build context for AI
+        context = f"""You are conducting a {interview['difficulty_level']} level {interview['interview_type']} interview for the position of {interview['position_role']}.
+
+This is question {current_question_num} out of {interview['total_questions']}.
+
+"""
+        if previous_qa:
+            context += "Previous questions and answers:\n"
+            for qa in previous_qa:
+                context += f"Q: {qa['question_text']}\nA: {qa['candidate_answer']}\n\n"
+        
+        prompt = context + f"""Generate ONE interview question for this candidate. The question should:
+1. Be relevant to the role and difficulty level
+2. Be clear and specific
+3. Not repeat previous questions
+4. Test practical knowledge or problem-solving
+5. Be answerable in 2-3 minutes
+
+Return ONLY the question text, nothing else."""
+        
+        response = model.generate_content(prompt)
+        question_text = response.text.strip()
+        
+        # Store the question
+        cursor.execute("""
+            INSERT INTO ai_interview_responses 
+            (interview_id, question_number, question_text)
+            VALUES (%s, %s, %s)
+        """, (interview_id, current_question_num, question_text))
+        
+        response_id = cursor.lastrowid
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return jsonify({
+            'success': True,
+            'question': question_text,
+            'question_number': current_question_num,
+            'total_questions': interview['total_questions'],
+            'response_id': response_id
+        })
+        
+    except Exception as e:
+        print(f"Error generating question: {e}")
+        try:
+            cursor.close()
+            db.close()
+        except:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interview/submit-answer/<int:response_id>', methods=['POST'])
+def submit_interview_answer(response_id):
+    """Submit and evaluate candidate's answer"""
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    data = request.get_json()
+    answer = data.get('answer', '').strip()
+    duration = data.get('duration', 0)  # in seconds
+    
+    if not answer:
+        return jsonify({'success': False, 'error': 'Answer is required'}), 400
+    
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    try:
+        # Get the question and interview details
+        cursor.execute("""
+            SELECT r.*, i.interview_type, i.position_role, i.difficulty_level
+            FROM ai_interview_responses r
+            JOIN ai_mock_interviews i ON r.interview_id = i.id
+            WHERE r.id = %s
+        """, (response_id,))
+        
+        response_data = cursor.fetchone()
+        if not response_data:
+            return jsonify({'success': False, 'error': 'Response not found'}), 404
+        
+        # Evaluate answer using AI
+        import google.generativeai as genai
+        api_key = os.environ.get('GEMINI_API_KEY')
+        
+        if not api_key:
+            return jsonify({'success': False, 'error': 'AI service not configured'}), 500
+        
+        genai.configure(api_key=api_key)
+        
+        # Get first available model that supports generateContent
+        model = None
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                model = genai.GenerativeModel(model_name=m.name)
+                break
+        
+        if model is None:
+            return jsonify({'success': False, 'error': 'No compatible AI model available'}), 500
+        
+        evaluation_prompt = f"""You are an expert interviewer evaluating a candidate's response.
+
+Interview Context:
+- Position: {response_data['position_role']}
+- Type: {response_data['interview_type']}
+- Level: {response_data['difficulty_level']}
+
+Question: {response_data['question_text']}
+
+Candidate's Answer: {answer}
+
+Evaluate this answer on a scale of 0-10 and provide:
+1. Score (0-10)
+2. Brief feedback (2-3 sentences) on what was good and what could be improved
+
+Format your response EXACTLY as:
+SCORE: [number]
+FEEDBACK: [your feedback here]"""
+        
+        eval_response = model.generate_content(evaluation_prompt)
+        eval_text = eval_response.text.strip()
+        
+        # Parse AI evaluation
+        score = 5.0  # default
+        feedback = "Answer received."
+        
+        if "SCORE:" in eval_text and "FEEDBACK:" in eval_text:
+            try:
+                score_part = eval_text.split("SCORE:")[1].split("FEEDBACK:")[0].strip()
+                score = float(score_part)
+                feedback = eval_text.split("FEEDBACK:")[1].strip()
+            except:
+                pass
+        
+        # Update the response
+        cursor.execute("""
+            UPDATE ai_interview_responses 
+            SET candidate_answer = %s, 
+                answer_duration = %s,
+                ai_evaluation = %s,
+                score = %s,
+                feedback = %s,
+                answered_at = NOW()
+            WHERE id = %s
+        """, (answer, duration, eval_text, score, feedback, response_id))
+        
+        # Update interview progress
+        cursor.execute("""
+            UPDATE ai_mock_interviews 
+            SET questions_answered = questions_answered + 1
+            WHERE id = %s
+        """, (response_data['interview_id'],))
+        
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return jsonify({
+            'success': True,
+            'score': score,
+            'feedback': feedback
+        })
+        
+    except Exception as e:
+        print(f"Error evaluating answer: {e}")
+        try:
+            db.rollback()
+            cursor.close()
+            db.close()
+        except:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/interview/complete/<int:interview_id>', methods=['POST'])
+def complete_interview(interview_id):
+    """Complete interview and calculate final scores"""
+    if session.get('role') != 'candidate':
+        return jsonify({'success': False, 'error': 'Unauthorized'}), 403
+    
+    candidate_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    try:
+        # Get all responses and calculate scores
+        cursor.execute("""
+            SELECT score FROM ai_interview_responses 
+            WHERE interview_id = %s AND candidate_answer IS NOT NULL
+        """, (interview_id,))
+        
+        scores = cursor.fetchall()
+        
+        if scores:
+            avg_score = sum(s['score'] for s in scores) / len(scores)
+            overall_score = (avg_score / 10) * 100  # Convert to percentage
+        else:
+            overall_score = 0
+        
+        # Generate overall feedback
+        import google.generativeai as genai
+        api_key = os.environ.get('GEMINI_API_KEY')
+        
+        overall_feedback = "Interview completed. Review your detailed performance below."
+        
+        if api_key:
+            try:
+                genai.configure(api_key=api_key)
+                
+                # Get first available model that supports generateContent
+                model = None
+                for m in genai.list_models():
+                    if 'generateContent' in m.supported_generation_methods:
+                        model = genai.GenerativeModel(model_name=m.name)
+                        break
+                
+                if model is None:
+                    overall_feedback = "Interview completed. Review your detailed performance below."
+                else:
+                    # Get all Q&As for summary
+                    cursor.execute("""
+                        SELECT question_text, candidate_answer, score, feedback
+                        FROM ai_interview_responses 
+                        WHERE interview_id = %s
+                        ORDER BY question_number
+                    """, (interview_id,))
+                    all_qa = cursor.fetchall()
+                    
+                    summary_prompt = f"""Provide a brief overall assessment (3-4 sentences) of this candidate's interview performance:
+
+Average Score: {overall_score:.1f}%
+
+Questions and Responses:
+"""
+                    for qa in all_qa:
+                        summary_prompt += f"\nQ: {qa['question_text']}\nScore: {qa['score']}/10\n"
+                    
+                    summary_response = model.generate_content(summary_prompt)
+                    overall_feedback = summary_response.text.strip()
+            except:
+                pass
+        
+        # Update interview as completed
+        cursor.execute("""
+            UPDATE ai_mock_interviews 
+            SET status = 'completed',
+                overall_score = %s,
+                technical_score = %s,
+                communication_score = %s,
+                confidence_score = %s,
+                ai_feedback = %s,
+                completed_at = NOW()
+            WHERE id = %s AND candidate_id = %s
+        """, (overall_score, overall_score, overall_score, overall_score, 
+              overall_feedback, interview_id, candidate_id))
+        
+        db.commit()
+        cursor.close()
+        db.close()
+        
+        return jsonify({
+            'success': True,
+            'overall_score': overall_score,
+            'redirect_url': f'/mock-interview-result/{interview_id}'
+        })
+        
+    except Exception as e:
+        print(f"Error completing interview: {e}")
+        try:
+            db.rollback()
+            cursor.close()
+            db.close()
+        except:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/mock-interview-result/<int:interview_id>')
+def mock_interview_result(interview_id):
+    """Display interview results and feedback"""
+    if session.get('role') != 'candidate':
+        return redirect('/login')
+    
+    candidate_id = session.get('user_id')
+    db = get_connection()
+    cursor = db.cursor(dictionary=True)
+    
+    # Get interview details
+    cursor.execute("""
+        SELECT * FROM ai_mock_interviews 
+        WHERE id = %s AND candidate_id = %s AND status = 'completed'
+    """, (interview_id, candidate_id))
+    
+    interview = cursor.fetchone()
+    
+    if not interview:
+        cursor.close()
+        db.close()
+        flash('Interview not found or not completed', 'danger')
+        return redirect('/candidate-dashboard#ai-assessments')
+    
+    # Get all questions and responses
+    cursor.execute("""
+        SELECT * FROM ai_interview_responses 
+        WHERE interview_id = %s
+        ORDER BY question_number
+    """, (interview_id,))
+    
+    responses = cursor.fetchall()
+    cursor.close()
+    db.close()
+    
+    return render_template('mock_interview_result.html', 
+                         interview=interview, 
+                         responses=responses)
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect('/')
 
-if __name__ == "__main__":
-    socketio.run(app, debug=True)
+if __name__ == '__main__':
+    socketio.run(app, debug=True, use_reloader=False)

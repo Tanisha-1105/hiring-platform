@@ -1,6 +1,6 @@
 <!-- Candidate Dashboard Template -->
 {% extends "base.html" %}
-{% block title %}Candidate Dashboard | HireHub{% endblock %}
+{% block title %}Candidate Dashboard | Sudeshm Jobs - Interns {% endblock %}
 
 {% block content %}
 <div class="container mt-3">
@@ -454,30 +454,242 @@
 
             <div class="card p-4 shadow-sm dashboard-section" id="ai-assessments">
                 <h4 class="mb-3">AI Assessments</h4>
-                <div class="row g-3">
+                <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <div class="border rounded p-3">
                             <h5>Technical Test</h5>
                             <p class="text-muted small">Evaluate your core engineering knowledge.</p>
-                            <button class="btn btn-sm btn-primary">Start Test</button>
+                            <a href="/start-ai-test" class="btn btn-sm btn-primary">Start Test</a>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="border rounded p-3">
                             <h5>AI Mock Interview</h5>
                             <p class="text-muted small">Real-time interview simulation with AI feedback.</p>
-                            <button class="btn btn-sm btn-outline-primary">Start Interview</button>
+                            <a href="/start-mock-interview" class="btn btn-sm btn-primary">
+                                <i class="bi bi-mic-fill me-1"></i>Start Interview
+                            </a>
                         </div>
                     </div>
                 </div>
+
+                <!-- Test Results Section -->
+                {% if ai_tests %}
+                <div class="mt-4">
+                    <h5 class="mb-3"><i class="bi bi-graph-up me-2"></i>Your Test Results</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Test Type</th>
+                                    <th>Skills Tested</th>
+                                    <th>Score</th>
+                                    <th>Percentage</th>
+                                    <th>Status</th>
+                                    <th>Completed At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for test in ai_tests %}
+                                <tr>
+                                    <td><span class="badge bg-primary">{{ test.test_type }}</span></td>
+                                    <td>
+                                        <small class="text-muted">{{ test.skills_tested[:50] }}{% if test.skills_tested|length > 50 %}...{% endif %}</small>
+                                    </td>
+                                    <td>
+                                        <strong class="text-success">{{ test.obtained_marks }}/{{ test.total_marks }}</strong>
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress" style="width: 60px; height: 8px;">
+                                                <div class="progress-bar 
+                                                    {% if test.percentage >= 80 %}bg-success
+                                                    {% elif test.percentage >= 60 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ test.percentage }}%"></div>
+                                            </div>
+                                            <span class="ms-2 small">{{ test.percentage }}%</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if test.status == 'completed' %}bg-success
+                                            {% elif test.status == 'in_progress' %}bg-warning
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ test.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if test.completed_at %}
+                                            <small>{{ test.completed_at.strftime('%d %b %Y, %I:%M %p') }}</small>
+                                        {% else %}
+                                            <small class="text-muted">Not completed</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if test.status == 'completed' %}
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="/view-test-details/{{ test.id }}" class="btn btn-outline-primary" title="View All Questions">
+                                                    <i class="bi bi-eye me-1"></i>Details
+                                                </a>
+                                                <a href="/skill-gap-analysis/{{ test.id }}" class="btn btn-outline-success" title="View Skill Gap Analysis">
+                                                    <i class="bi bi-graph-up me-1"></i>Analysis
+                                                </a>
+                                            </div>
+                                        {% else %}
+                                            <span class="text-muted small">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% else %}
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>You haven't taken any AI assessments yet. Start your first test above!
+                </div>
+                {% endif %}
+
+                <!-- Mock Interview Results Section -->
+                {% if mock_interviews %}
+                <div class="mt-5">
+                    <h5 class="mb-3"><i class="bi bi-mic-fill me-2"></i>Your Mock Interview Results</h5>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Interview Type</th>
+                                    <th>Position/Role</th>
+                                    <th>Level</th>
+                                    <th>Score</th>
+                                    <th>Questions</th>
+                                    <th>Status</th>
+                                    <th>Completed At</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for interview in mock_interviews %}
+                                <tr>
+                                    <td><span class="badge bg-info">{{ interview.interview_type }}</span></td>
+                                    <td>{{ interview.position_role }}</td>
+                                    <td><span class="badge bg-secondary">{{ interview.difficulty_level }}</span></td>
+                                    <td>
+                                        {% if interview.status == 'completed' %}
+                                        <div class="d-flex align-items-center">
+                                            <div class="progress" style="width: 60px; height: 8px;">
+                                                <div class="progress-bar 
+                                                    {% if interview.overall_score >= 80 %}bg-success
+                                                    {% elif interview.overall_score >= 60 %}bg-warning
+                                                    {% else %}bg-danger{% endif %}" 
+                                                    style="width: {{ interview.overall_score }}%"></div>
+                                            </div>
+                                            <span class="ms-2 small">{{ "%.0f"|format(interview.overall_score) }}%</span>
+                                        </div>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ interview.questions_answered }}/{{ interview.total_questions }}</td>
+                                    <td>
+                                        <span class="badge 
+                                            {% if interview.status == 'completed' %}bg-success
+                                            {% elif interview.status == 'in_progress' %}bg-warning
+                                            {% else %}bg-secondary{% endif %}">
+                                            {{ interview.status }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {% if interview.completed_at %}
+                                            <small>{{ interview.completed_at.strftime('%d %b %Y, %I:%M %p') }}</small>
+                                        {% else %}
+                                            <small class="text-muted">In Progress</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if interview.status == 'completed' %}
+                                            <a href="/mock-interview-result/{{ interview.id }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-eye me-1"></i>View Results
+                                            </a>
+                                        {% elif interview.status == 'in_progress' %}
+                                            <a href="/mock-interview/{{ interview.id }}" class="btn btn-sm btn-warning">
+                                                <i class="bi bi-play-fill me-1"></i>Continue
+                                            </a>
+                                        {% else %}
+                                            <span class="text-muted small">N/A</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
             </div>
 
             <div class="card p-4 shadow-sm dashboard-section" id="skill-analysis">
-                <h4 class="mb-3">Skill Gap Analysis</h4>
-                <div class="alert alert-info">
-                    Based on your test results, we recommend focusing on <strong>SQL Joins</strong> and <strong>Flask Routing</strong>.
-                </div>
-                <p>Improve these areas to increase your job match percentage by 15%.</p>
+                <h4 class="mb-3"><i class="bi bi-bar-chart-line me-2"></i>Skill Gap Analysis</h4>
+                
+                {% if ai_tests %}
+                    {% set latest_test = ai_tests[0] %}
+                    {% if latest_test.status == 'completed' %}
+                        <div class="alert alert-primary">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Your latest test was completed on <strong>{{ latest_test.completed_at.strftime('%d %b %Y') }}</strong> with a score of <strong>{{ latest_test.percentage }}%</strong>.
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <div class="card border-primary h-100">
+                                    <div class="card-body text-center">
+                                        <h5 class="card-title">Overall Score</h5>
+                                        <h2 class="display-4 {% if latest_test.percentage >= 80 %}text-success{% elif latest_test.percentage >= 60 %}text-warning{% else %}text-danger{% endif %}">
+                                            {{ latest_test.percentage }}%
+                                        </h2>
+                                        <p class="text-muted">{{ latest_test.obtained_marks }}/{{ latest_test.total_marks }} marks</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card border-success h-100">
+                                    <div class="card-body">
+                                        <h5 class="card-title"><i class="bi bi-lightbulb me-2"></i>Next Steps</h5>
+                                        <ul class="list-unstyled mb-0">
+                                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Review your detailed analysis</li>
+                                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Access personalized learning resources</li>
+                                            <li class="mb-2"><i class="bi bi-check-circle text-success me-2"></i>Improve weak areas identified</li>
+                                            <li><i class="bi bi-check-circle text-success me-2"></i>Retake test to track progress</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <a href="/skill-gap-analysis/{{ latest_test.id }}" class="btn btn-lg btn-primary">
+                                <i class="bi bi-graph-up me-2"></i>View Detailed Skill Gap Analysis & Course Recommendations
+                            </a>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-warning">
+                            <i class="bi bi-hourglass-split me-2"></i>You have a test in progress. Complete it to see your skill analysis!
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-2"></i>
+                        <strong>Take an AI assessment first!</strong> Once you complete a test, you'll get a detailed skill gap analysis with personalized learning recommendations.
+                    </div>
+                    <div class="text-center mt-3">
+                        <a href="#ai-assessments" class="btn btn-primary">
+                            <i class="bi bi-robot me-2"></i>Start Your First AI Assessment
+                        </a>
+                    </div>
+                {% endif %}
             </div>
 
             <div class="card p-4 shadow-sm dashboard-section" id="recommended-jobs">
@@ -553,9 +765,16 @@
                                         </td>
                                         <td><small>{{ req.created_at.strftime('%d %b %Y') if req.created_at else 'N/A' }}</small></td>
                                         <td>
-                                            <button class="btn btn-sm btn-outline-info" data-bs-toggle="modal" data-bs-target="#requestDetailModal{{ req.id }}">
-                                                <i class="bi bi-info-circle"></i>
-                                            </button>
+                                            <div class="btn-group btn-group-sm">
+                                                {% if req.status == 'Accepted' %}
+                                                <a href="/mentor-chat/{{ req.id }}" class="btn btn-primary" title="Chat with Mentor">
+                                                    <i class="bi bi-chat-dots"></i>
+                                                </a>
+                                                {% endif %}
+                                                <button class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#requestDetailModal{{ req.id }}" title="View Details">
+                                                    <i class="bi bi-info-circle"></i>
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     

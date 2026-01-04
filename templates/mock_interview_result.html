@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .result-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 40px;
+        border-radius: 15px;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .score-circle {
+        width: 150px;
+        height: 150px;
+        border-radius: 50%;
+        background: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 20px auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    .score-value {
+        font-size: 3rem;
+        font-weight: bold;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .qa-card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        border-left: 4px solid #667eea;
+    }
+    .score-indicator {
+        display: inline-block;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-weight: bold;
+    }
+    .score-high { background: #d1fae5; color: #065f46; }
+    .score-medium { background: #fed7aa; color: #92400e; }
+    .score-low { background: #fee2e2; color: #991b1b; }
+</style>
+
+<div class="container py-5">
+    <!-- Result Header -->
+    <div class="result-header">
+        <h1 class="fw-bold mb-3">
+            <i class="bi bi-trophy-fill me-2"></i>Interview Complete!
+        </h1>
+        <p class="lead mb-0">{{ interview.position_role }} - {{ interview.interview_type|title }}</p>
+        
+        <div class="score-circle">
+            <div class="score-value">{{ "%.0f"|format(interview.overall_score) }}%</div>
+        </div>
+        
+        <div class="row text-center mt-4">
+            <div class="col-4">
+                <h5>{{ interview.questions_answered }}</h5>
+                <small>Questions</small>
+            </div>
+            <div class="col-4">
+                <h5>{{ interview.difficulty_level|title }}</h5>
+                <small>Level</small>
+            </div>
+            <div class="col-4">
+                <h5>{{ interview.completed_at.strftime('%d %b %Y') }}</h5>
+                <small>Date</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Overall Feedback -->
+    {% if interview.ai_feedback %}
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="card-title"><i class="bi bi-lightbulb-fill text-warning me-2"></i>Overall Assessment</h4>
+            <p class="card-text">{{ interview.ai_feedback }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Performance Breakdown -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h4 class="card-title mb-4"><i class="bi bi-bar-chart-fill text-primary me-2"></i>Performance Breakdown</h4>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 border rounded">
+                        <h3 class="text-primary mb-2">{{ "%.0f"|format(interview.technical_score) }}%</h3>
+                        <p class="text-muted mb-0">Technical Score</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 border rounded">
+                        <h3 class="text-success mb-2">{{ "%.0f"|format(interview.communication_score) }}%</h3>
+                        <p class="text-muted mb-0">Communication</p>
+                    </div>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <div class="text-center p-3 border rounded">
+                        <h3 class="text-info mb-2">{{ "%.0f"|format(interview.confidence_score) }}%</h3>
+                        <p class="text-muted mb-0">Confidence</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Q&A Review -->
+    <div class="card">
+        <div class="card-body">
+            <h4 class="card-title mb-4">
+                <i class="bi bi-chat-left-text-fill text-success me-2"></i>Detailed Question Review
+            </h4>
+
+            {% for response in responses %}
+            <div class="qa-card">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <h5 class="mb-0">Question {{ response.question_number }}</h5>
+                    <span class="score-indicator {% if response.score >= 7 %}score-high{% elif response.score >= 5 %}score-medium{% else %}score-low{% endif %}">
+                        {{ "%.1f"|format(response.score) }}/10
+                    </span>
+                </div>
+
+                <div class="mb-3">
+                    <strong class="text-primary">Question:</strong>
+                    <p class="mt-2">{{ response.question_text }}</p>
+                </div>
+
+                {% if response.candidate_answer %}
+                <div class="mb-3">
+                    <strong class="text-success">Your Answer:</strong>
+                    <p class="mt-2 text-muted">{{ response.candidate_answer }}</p>
+                </div>
+
+                {% if response.feedback %}
+                <div class="alert alert-light mb-0">
+                    <strong><i class="bi bi-robot me-2"></i>AI Feedback:</strong>
+                    <p class="mb-0 mt-2">{{ response.feedback }}</p>
+                </div>
+                {% endif %}
+                {% else %}
+                <p class="text-muted fst-italic">No answer provided</p>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="text-center mt-4">
+        <a href="/start-mock-interview" class="btn btn-primary btn-lg me-2">
+            <i class="bi bi-arrow-repeat me-2"></i>Take Another Interview
+        </a>
+        <a href="/candidate-dashboard#ai-assessments" class="btn btn-outline-secondary btn-lg">
+            <i class="bi bi-house me-2"></i>Back to Dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}

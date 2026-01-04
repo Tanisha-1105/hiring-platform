@@ -1,0 +1,96 @@
+{% extends "recruiter_dashboard.html" %}
+
+{% block dashboard_content %}
+<div class="container-fluid mt-2">
+    <h3 class="fw-bold mb-4">Applications</h3>
+
+    {% if applications %}
+    <div class="card border-0 shadow-sm rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4 py-3">Candidate</th>
+                            <th class="py-3">Job Role</th>
+                            <th class="py-3">Applied Date</th>
+                            <th class="py-3">AI Test Score</th>
+                            <th class="py-3">Status</th>
+                            <th class="py-3">Resume</th>
+                            <th class="pe-4 py-3 text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for app in applications %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="fw-semibold">{{ app.candidate_name }}</div>
+                                <div class="small text-muted">{{ app.candidate_email }}</div>
+                            </td>
+                            <td>{{ app.job_title }}</td>
+                            <td>{{ app.created_at }}</td>
+                            <td>
+                                {% if app.latest_test_score is not none %}
+                                <div>
+                                    <a href="/view-test-details/{{ app.latest_test_id }}" class="text-decoration-none">
+                                        <span class="badge 
+                                            {% if app.latest_test_percentage >= 80 %}bg-success
+                                            {% elif app.latest_test_percentage >= 60 %}bg-warning
+                                            {% else %}bg-danger{% endif %}">
+                                            {{ app.latest_test_score }}/{{ app.latest_test_total }}
+                                        </span>
+                                        <span class="ms-1 small text-muted">({{ app.latest_test_percentage }}%)</span>
+                                    </a>
+                                </div>
+                                {% else %}
+                                <span class="text-muted small"><i class="bi bi-dash-circle me-1"></i>Not taken</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if app.status == 'Shortlisted' %}
+                                    <span class="badge bg-info-subtle text-info border border-info-subtle">{{ app.status }}</span>
+                                {% elif app.status == 'Rejected' %}
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle">{{ app.status }}</span>
+                                {% elif app.status == 'Interview Scheduled' %}
+                                    <span class="badge bg-warning-subtle text-warning border border-warning-subtle">{{ app.status }}</span>
+                                {% elif app.status == 'Offer Sent' %}
+                                    <span class="badge bg-success-subtle text-success border border-success-subtle">{{ app.status }}</span>
+                                {% else %}
+                                    <span class="badge bg-light text-dark border">{{ app.status }}</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if app.resume_file %}
+                                <a href="{{ url_for('static', filename='uploads/' + app.resume_file) }}" target="_blank" class="btn btn-sm btn-outline-secondary">
+                                    <i class="bi bi-file-earmark-pdf"></i> View
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">No Resume</span>
+                                {% endif %}
+                            </td>
+                            <td class="pe-4 text-end">
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-light border dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                        Update Status
+                                    </button>
+                                    <ul class="dropdown-menu dropdown-menu-end">
+                                        <li><a class="dropdown-item" href="/update-application/{{ app.id }}/shortlist"><i class="bi bi-check-circle me-2 text-info"></i>Shortlist</a></li>
+                                        <li><a class="dropdown-item" href="/update-application/{{ app.id }}/interview"><i class="bi bi-calendar-event me-2 text-warning"></i>Schedule Interview</a></li>
+                                        <li><a class="dropdown-item" href="/update-application/{{ app.id }}/offer"><i class="bi bi-award me-2 text-success"></i>Send Offer</a></li>
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><a class="dropdown-item text-danger" href="/update-application/{{ app.id }}/reject"><i class="bi bi-x-circle me-2"></i>Reject</a></li>
+                                    </ul>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">No applications received yet.</div>
+    {% endif %}
+</div>
+{% endblock %}
